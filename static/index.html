@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>亦可速记</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">亦</div>
+      <div class="brand-text">
+        <strong>亦可速记</strong>
+        <span id="bookShortName">本地词库</span>
+      </div>
+    </div>
+    <nav class="main-nav" aria-label="主要页面">
+      <button class="nav-btn active" data-view="books" type="button">词书</button>
+      <button class="nav-btn" data-view="export" type="button">导出 PDF</button>
+    </nav>
+    <button class="primary-btn" id="importBtn" type="button">导入词书</button>
+  </header>
+
+  <main class="content">
+    <section class="view active" id="view-books" data-view-panel="books">
+      <div class="section-head">
+        <div>
+          <h1 id="bookTitle">我的词书</h1>
+          <p id="bookSubtitle" class="subtle">选择单元后开始背诵</p>
+        </div>
+        <div class="head-actions">
+          <select id="bookSelect" class="select" aria-label="切换词书"></select>
+          <button class="ghost-btn danger-ghost" id="deleteBookBtn" type="button">删除当前词书</button>
+        </div>
+      </div>
+
+      <div id="emptyState" class="empty-state hidden">
+        <div class="empty-title">这里还没有词书</div>
+        <p>上传 Excel、CSV、TXT、JSON、DOCX，或直接粘贴文本。</p>
+        <div class="empty-actions">
+          <button class="primary-btn" data-open-import type="button">导入词书</button>
+          <button class="ghost-btn" id="sampleBookBtn" type="button">先用内置体验词书</button>
+        </div>
+      </div>
+
+      <div id="bookBody" class="hidden">
+        <div class="stat-strip" id="statStrip"></div>
+
+        <div class="unit-toolbar">
+          <div class="selection-summary">
+            <strong id="selectionText">已选 0 个单元</strong>
+            <span id="selectionWords" class="subtle">0 个单词</span>
+          </div>
+          <div class="toolbar-actions">
+            <button class="text-btn" id="selectAllBtn" type="button">全选</button>
+            <button class="text-btn" id="clearSelectBtn" type="button">清空</button>
+          </div>
+        </div>
+
+        <div class="unit-grid" id="unitGrid"></div>
+
+        <div class="learn-bar">
+          <div class="segmented" id="orderSwitch" role="group" aria-label="背诵顺序">
+            <button class="seg-btn" data-order="asc" type="button">正序</button>
+            <button class="seg-btn active" data-order="shuffle" type="button">乱序</button>
+          </div>
+          <button class="primary-btn large-btn" id="startLearnBtn" type="button" disabled>开始背单词</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-learn" data-view-panel="learn">
+      <div id="learnSetup" class="setup-panel hidden"></div>
+      <div id="learnRunning" class="learn-wrap hidden">
+        <div class="learn-meta">
+          <div>
+            <strong id="learnUnitName">单元</strong>
+            <span id="learnCounter" class="subtle">0 / 0</span>
+          </div>
+          <button class="ghost-btn" id="exitLearnBtn" type="button">退出</button>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="learnProgress"></div></div>
+
+        <button class="flashcard" id="cardArea" type="button" aria-label="翻转卡片">
+          <span class="card-front">
+            <span class="card-word" id="cardWord"></span>
+            <span class="card-side" id="cardPhonetic"></span>
+            <span class="card-side" id="cardPos"></span>
+            <span class="card-hint">点击卡片查看释义</span>
+          </span>
+          <span class="card-back">
+            <span class="card-label">中文释义</span>
+            <span class="card-meaning" id="cardMeaning"></span>
+            <span class="card-english" id="cardEnglish"></span>
+            <span class="card-memory" id="cardMemory"></span>
+          </span>
+        </button>
+
+        <div class="rating-row">
+          <button class="rating-btn know" data-rating="know" type="button">
+            <span class="rating-dot"></span>认识
+          </button>
+          <button class="rating-btn fuzzy" data-rating="fuzzy" type="button">
+            <span class="rating-dot"></span>模糊
+          </button>
+          <button class="rating-btn unknown" data-rating="unknown" type="button">
+            <span class="rating-dot"></span>不认识
+          </button>
+          <button class="ghost-btn" id="prevCardBtn" type="button" disabled>上一张</button>
+          <button class="ghost-btn" id="skipCardBtn" type="button">下一张</button>
+        </div>
+        <div id="sessionStatus" class="session-status hidden"></div>
+      </div>
+
+      <div id="learnFinished" class="finish-panel hidden"></div>
+    </section>
+
+    <section class="view" id="view-export" data-view-panel="export">
+      <div class="section-head">
+        <div>
+          <h1>导出 PDF</h1>
+          <p id="exportSubtitle" class="subtle">从当前词书中抽查单词</p>
+        </div>
+      </div>
+      <div class="export-layout">
+        <form class="export-form" id="exportForm">
+          <fieldset class="fieldset">
+            <legend>单元</legend>
+            <div id="exportUnitList" class="check-list"></div>
+            <div class="inline-actions">
+              <button class="text-btn" id="exportSelectAllBtn" type="button">全选</button>
+              <button class="text-btn" id="exportClearBtn" type="button">清空</button>
+            </div>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend>抽取方式</legend>
+            <div class="segmented" id="exportModeSwitch" role="group" aria-label="抽取方式">
+              <button class="seg-btn active" data-mode="all" type="button">全部</button>
+              <button class="seg-btn" data-mode="per_unit" type="button">每单元抽查</button>
+              <button class="seg-btn" data-mode="total" type="button">总抽查</button>
+            </div>
+            <label class="number-field" id="countField">
+              <span>抽取个数</span>
+              <input id="exportCount" type="number" min="1" max="2000" value="20">
+            </label>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend>PDF 内容</legend>
+            <div class="segmented" id="exportContentSwitch" role="group" aria-label="PDF内容">
+              <button class="seg-btn active" data-pdf-style="blank" type="button">默写版</button>
+              <button class="seg-btn" data-pdf-style="reference" type="button">对照版</button>
+            </div>
+            <p class="content-hint" id="exportContentHint">每页 50 个，编号和英文在左，右侧留空手写中文</p>
+          </fieldset>
+
+          <div class="export-footer">
+            <div>
+              <strong id="exportCountText">0 个单词</strong>
+              <span id="exportUnitText" class="subtle"></span>
+            </div>
+            <button class="primary-btn large-btn" id="exportPdfBtn" type="button" disabled>生成 PDF</button>
+          </div>
+        </form>
+        <div class="preview-panel">
+          <div class="preview-title">
+            <strong>抽查预览</strong>
+            <button class="ghost-btn" id="refreshPreviewBtn" type="button">换一批</button>
+          </div>
+          <div id="exportPreview" class="export-preview"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <dialog id="importDialog" class="modal">
+    <form method="dialog" class="modal-shell" id="importModalShell">
+      <div class="modal-head">
+        <h2>导入词书</h2>
+        <button class="icon-btn" value="cancel" type="submit" aria-label="关闭">×</button>
+      </div>
+      <div class="import-tabs" role="group">
+        <button class="tab-btn active" data-import-mode="file" type="button">上传文件</button>
+        <button class="tab-btn" data-import-mode="text" type="button">粘贴文本</button>
+      </div>
+
+      <div class="import-mode active" id="importFileMode">
+        <label class="drop-zone" id="dropZone">
+          <input id="fileInput" type="file" accept=".xlsx,.csv,.tsv,.txt,.json,.docx,.pdf">
+          <strong>选择或拖入词书文件</strong>
+          <span class="subtle">支持 Excel、CSV、TXT、JSON、DOCX、PDF</span>
+        </label>
+        <div id="fileMeta" class="subtle"></div>
+      </div>
+
+      <div class="import-mode" id="importTextMode">
+        <label class="form-field">
+          <span>粘贴单词文本</span>
+          <textarea id="importText" rows="9" placeholder="Unit 1&#10;abandon 放弃，抛弃"></textarea>
+        </label>
+      </div>
+
+      <label class="form-field">
+        <span>词书名</span>
+        <input id="importName" type="text" placeholder="自动使用文件名">
+      </label>
+      <label class="check-row">
+        <input id="replaceSame" type="checkbox" checked>
+        <span>同名词书直接覆盖旧版本</span>
+      </label>
+      <div id="importStatus" class="subtle"></div>
+      <div class="modal-footer">
+        <button class="ghost-btn" value="cancel" type="submit">取消</button>
+        <button class="primary-btn" id="doImportBtn" type="button">开始导入</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="recordDialog" class="modal record-modal">
+    <form method="dialog" class="modal-shell">
+      <div class="modal-head">
+        <h2 id="recordTitle">单词记录</h2>
+        <button class="icon-btn" value="cancel" type="submit" aria-label="关闭">×</button>
+      </div>
+      <div class="segmented record-filter" id="recordFilter" role="group" aria-label="记录分组">
+        <button class="seg-btn active" data-record-tab="know" type="button">认识</button>
+        <button class="seg-btn" data-record-tab="fuzzy" type="button">模糊</button>
+        <button class="seg-btn" data-record-tab="unknown" type="button">不认识</button>
+      </div>
+      <div class="record-toolbar">
+        <input id="recordSearch" type="search" placeholder="搜索这个分组">
+        <button class="primary-btn" id="recordPracticeBtn" type="button" disabled>开始背这一组</button>
+      </div>
+      <div id="recordList" class="record-list"></div>
+    </form>
+  </dialog>
+
+  <dialog id="historyDialog" class="modal history-modal">
+    <form method="dialog" class="modal-shell">
+      <div class="modal-head">
+        <h2 id="historyTitle">点击记录</h2>
+        <button class="icon-btn" value="cancel" type="submit" aria-label="关闭">×</button>
+      </div>
+      <div id="historySummary" class="history-summary"></div>
+      <div id="historyList" class="history-list"></div>
+    </form>
+  </dialog>
+
+  <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
