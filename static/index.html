@@ -31,6 +31,8 @@
         </div>
         <div class="head-actions">
           <select id="bookSelect" class="select" aria-label="切换词书"></select>
+          <button class="ghost-btn" id="renameBookBtn" type="button">改名</button>
+          <button class="primary-btn" id="addBookBtn" type="button">本书添加单词</button>
           <button class="ghost-btn danger-ghost" id="deleteBookBtn" type="button">删除当前词书</button>
         </div>
       </div>
@@ -179,7 +181,7 @@
   <dialog id="importDialog" class="modal">
     <form method="dialog" class="modal-shell" id="importModalShell">
       <div class="modal-head">
-        <h2>导入词书</h2>
+        <h2 id="importDialogTitle">导入词书</h2>
         <button class="icon-btn" value="cancel" type="submit" aria-label="关闭">×</button>
       </div>
       <div class="import-tabs" role="group">
@@ -204,17 +206,51 @@
       </div>
 
       <label class="form-field">
-        <span>词书名</span>
+        <span id="importNameLabel">词书名</span>
         <input id="importName" type="text" placeholder="自动使用文件名">
       </label>
       <label class="check-row">
         <input id="replaceSame" type="checkbox" checked>
-        <span>同名词书直接覆盖旧版本</span>
+        <span id="replaceSameLabel">同名词书直接覆盖旧版本</span>
       </label>
       <div id="importStatus" class="subtle"></div>
       <div class="modal-footer">
         <button class="ghost-btn" value="cancel" type="submit">取消</button>
         <button class="primary-btn" id="doImportBtn" type="button">开始导入</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="renameDialog" class="modal">
+    <form method="dialog" class="modal-shell" id="renameModalShell">
+      <div class="modal-head">
+        <h2>修改词书名称</h2>
+        <button class="icon-btn" value="cancel" type="submit" aria-label="关闭">×</button>
+      </div>
+      <label class="form-field">
+        <span>新的词书名</span>
+        <input id="renameInput" type="text" autocomplete="off">
+      </label>
+      <div id="renameStatus" class="subtle"></div>
+      <div class="modal-footer">
+        <button class="ghost-btn" value="cancel" type="submit">取消</button>
+        <button class="primary-btn" id="saveRenameBtn" type="button">保存名称</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="deleteBookDialog" class="modal">
+    <form method="dialog" class="modal-shell" id="deleteBookModalShell">
+      <div class="modal-head">
+        <h2>确定删除词书吗？</h2>
+        <button class="icon-btn" value="cancel" type="submit" aria-label="关闭">×</button>
+      </div>
+      <p class="confirm-text">你确定要删除「<strong id="deleteBookName"></strong>」吗？</p>
+      <p class="subtle">这本词书里的单词、单元和学习记录都会被删除，删除后无法恢复。</p>
+      <div id="deleteBookStatus" class="subtle"></div>
+      <div class="modal-footer">
+        <button class="ghost-btn" value="cancel" type="submit">取消</button>
+        <button class="ghost-btn danger-ghost" id="confirmDeleteBookBtn" type="button">确定删除</button>
       </div>
     </form>
   </dialog>

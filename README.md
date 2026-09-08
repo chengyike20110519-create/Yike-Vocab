@@ -26,6 +26,21 @@
 
 需要 Python 3.10 或更高版本。
 
+### GitHub Release 一键启动
+
+GitHub Release 下载的是这个平台的本地部署包，不是在线网站：词书和学习记录会保存在用户自己的电脑上，GitHub 不会接触这些数据。
+
+下载并解压 Release 压缩包后：
+
+- macOS / Linux：双击 `启动.command`。macOS 第一次如果提示无法打开，可右键文件并选择“打开”。
+- Windows：双击 `启动.bat`。
+
+启动器会自动创建独立运行环境、安装依赖、启动本地前后端服务，并打开浏览器。这个项目的前端页面和后端接口由同一个本地服务提供，所以用户只需要点击一次，不需要分别启动前端和后端。关闭启动器窗口即可停止服务。
+
+电脑需要预先安装 Python 3.10 或更高版本。第一次启动需要联网安装依赖，之后启动不需要重复安装。
+
+### 手动运行
+
 ```bash
 git clone <你的仓库地址>
 cd 单词软件
@@ -42,14 +57,7 @@ Windows 激活虚拟环境：
 python app.py
 ```
 
-启动后打开 `http://127.0.0.1:8000`。
-
-也可以不创建虚拟环境：
-
-```bash
-python3 -m pip install -r requirements.txt
-python3 app.py
-```
+启动后会自动打开 `http://127.0.0.1:8000`。如果常用端口已被占用，程序会自动选择系统分配的空闲本地端口。
 
 ## 导入格式
 
@@ -87,6 +95,8 @@ PDF 导入会识别常见的 Barron / Direct Hits 词书排版。扫描版且没
 ├── app.py              # 本地服务与 API
 ├── importer.py         # 词书解析与导入
 ├── export_pdf.py       # PDF 导出
+├── 启动.command         # macOS / Linux 一键启动
+├── 启动.bat             # Windows 一键启动
 ├── static/
 │   ├── index.html
 │   ├── styles.css

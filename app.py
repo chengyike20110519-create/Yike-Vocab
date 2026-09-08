@@ -249,6 +249,23 @@ def delete_book(book_id: int) -> None:
         conn.execute("DELETE FROM books WHERE id = ?", (book_id,))
 
 
+def rename_book(book_id: int, name: str) -> None:
+    clean_name = name.strip()
+    if not clean_name:
+        raise ValueError("词书名不能为空")
+    with connect() as conn:
+        book = conn.execute("SELECT id FROM books WHERE id = ?", (book_id,)).fetchone()
+        if not book:
+            raise ValueError("找不到这本词书")
+        duplicate = conn.execute(
+            "SELECT id FROM books WHERE lower(name) = lower(?) AND id != ?",
+            (clean_name, book_id),
+        ).fetchone()
+        if duplicate:
+            raise ValueError("已经有同名词书，请换一个名字")
+        conn.execute("UPDATE books SET name = ? WHERE id = ?", (clean_name, book_id))
+
+
 def mark_word(word_id: int, status: str) -> None:
     if status not in ("know", "fuzzy", "unknown"):
         raise ValueError("状态只能是 know / fuzzy / unknown")
@@ -336,52 +353,66 @@ def import_records(
     book_name: str,
     source_name: str,
     replace_same: bool = True,
+    append_book_id: int | None = None,
 ) -> dict:
     cleaned = normalize_records(records)
     if not cleaned:
         raise ValueError("没有识别到有效词条")
     name = book_name.strip() or "我的词书"
     with connect() as conn:
-        if replace_same:
-            existing = conn.execute(
-                "SELECT id FROM books WHERE lower(name) = lower(?)",
-                (name,),
+        if append_book_id is not None:
+            existing_book = conn.execute(
+                "SELECT id, name FROM books WHERE id = ?", (append_book_id,)
             ).fetchone()
-            if existing:
-                conn.execute("DELETE FROM books WHERE id = ?", (existing["id"],))
+            if not existing_book:
+                raise ValueError("找不到要添加单词的词书")
+            book_id = existing_book["id"]
+            name = existing_book["name"]
+        else:
+            if replace_same:
+                existing = conn.execute(
+                    "SELECT id FROM books WHERE lower(name) = lower(?)",
+                    (name,),
+                ).fetchone()
+                if existing:
+                    conn.execute("DELETE FROM books WHERE id = ?", (existing["id"],))
 
-        cur = conn.execute(
-            "INSERT INTO books (name, source_name, imported_at) VALUES (?, ?, ?)",
-            (name, source_name, utcnow_iso()),
-        )
-        book_id = cur.lastrowid
-        unit_cache: dict[str, tuple[int, int]] = {}
+            cur = conn.execute(
+                "INSERT INTO books (name, source_name, imported_at) VALUES (?, ?, ?)",
+                (name, source_name, utcnow_iso()),
+            )
+            book_id = cur.lastrowid
+
+        existing_units = conn.execute(
+            "SELECT id, no, name FROM units WHERE book_id = ?", (book_id,)
+        ).fetchall()
+        unit_cache: dict[str, tuple[int, int]] = {
+            row["name"]: (row["id"], row["no"]) for row in existing_units
+        }
+        next_unit_no = max((row["no"] for row in existing_units), default=0) + 1
         word_count = 0
         duplicate_count = 0
         for rec in cleaned:
             unit_name = rec["unit_name"]
             if unit_name not in unit_cache:
-                no = rec.get("unit_no") or (len(unit_cache) + 1)
-                if no is None:
-                    no = len(unit_cache) + 1
+                no = rec.get("unit_no")
                 try:
-                    no = int(no)
+                    no = int(no) if no is not None else next_unit_no
                 except (TypeError, ValueError):
-                    no = len(unit_cache) + 1
-                existing_no = conn.execute(
-                    "SELECT COUNT(*) AS c FROM units WHERE book_id = ? AND no = ?",
-                    (book_id, no),
-                ).fetchone()["c"]
-                if existing_no:
-                    no = len(unit_cache) + 1
+                    no = next_unit_no
+                used_numbers = {unit_no for _unit_id, unit_no in unit_cache.values()}
+                while no in used_numbers:
+                    no = next_unit_no
+                    next_unit_no += 1
                 uc = conn.execute(
                     "INSERT INTO units (book_id, no, name) VALUES (?, ?, ?)",
                     (book_id, no, unit_name),
                 )
                 unit_cache[unit_name] = (uc.lastrowid, no)
+                next_unit_no = max(next_unit_no, no + 1)
             unit_id, _no = unit_cache[unit_name]
             try:
-                cur_word = conn.execute(
+                conn.execute(
                     """
                     INSERT INTO words
                         (unit_id, word, phonetic, pos, meaning, meaning_en, memory)
@@ -542,6 +573,11 @@ class VocabularyHandler(BaseHTTPRequestHandler):
                     book_name=payload.get("name") or "",
                     source_name=payload.get("filename") or "粘贴文本",
                     replace_same=bool(payload.get("replace_same", True)),
+                    append_book_id=(
+                        int(payload["append_book_id"])
+                        if payload.get("append_book_id") is not None
+                        else None
+                    ),
                 )
                 self._send_json(200, result)
                 return
@@ -559,6 +595,11 @@ class VocabularyHandler(BaseHTTPRequestHandler):
             if path == "/api/delete-book":
                 book_id = int(payload["book_id"])
                 delete_book(book_id)
+                self._send_json(200, {"ok": True})
+                return
+            if path == "/api/rename-book":
+                book_id = int(payload["book_id"])
+                rename_book(book_id, str(payload.get("name", "")))
                 self._send_json(200, {"ok": True})
                 return
             if path == "/api/export-pdf":
@@ -622,7 +663,14 @@ def find_free_port(preferred: int = 8000) -> int:
             except OSError:
                 continue
             return port
-    return 0
+    # Fall back to an OS-assigned local port when the usual development range
+    # is already occupied by another local service.
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind(("127.0.0.1", 0))
+        except OSError:
+            return 0
+        return int(sock.getsockname()[1])
 
 
 def main() -> None:

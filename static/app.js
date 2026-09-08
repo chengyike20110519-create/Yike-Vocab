@@ -38,6 +38,7 @@ const state = {
   recordCards: [],
   wordHistory: null,
   learnReturnView: "books",
+  importAppendBookId: null,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -115,6 +116,8 @@ function renderBooks() {
   $("#emptyState").classList.toggle("hidden", hasBooks);
   $("#bookBody").classList.toggle("hidden", !hasBooks);
   $("#bookSelect").classList.toggle("hidden", !hasBooks);
+  $("#renameBookBtn").classList.toggle("hidden", !hasBooks);
+  $("#addBookBtn").classList.toggle("hidden", !hasBooks);
   $("#deleteBookBtn").classList.toggle("hidden", !hasBooks);
   $("#bookShortName").textContent = book ? `${book.name} · ${book.word_count} 词` : "本地词库";
   $("#bookTitle").textContent = book?.name || "我的词书";
@@ -125,7 +128,7 @@ function renderBooks() {
   state.books.forEach((b) => {
     const opt = document.createElement("option");
     opt.value = String(b.id);
-    opt.textContent = `${b.name}（${b.unit_count} 单元 · ${b.word_count} 词）`;
+    opt.textContent = `${b.name}（${b.word_count} 词）`;
     opt.selected = b.id === state.activeBookId;
     select.appendChild(opt);
   });
@@ -693,6 +696,9 @@ async function runImport({ file, text } = {}) {
     replace_same: replaceSame,
     filename,
   };
+  if (state.importAppendBookId !== null) {
+    payload.append_book_id = state.importAppendBookId;
+  }
   if (file) {
     $("#doImportBtn").disabled = true;
     status.textContent = "正在读取文件...";
@@ -715,10 +721,12 @@ async function runImport({ file, text } = {}) {
   try {
     const result = await api("/api/import", jsonOptions("POST", payload));
     const dup = result.duplicate_count ? `，跳过重复 ${result.duplicate_count}` : "";
-    showToast(`已导入 ${result.word_count} 个单词 / ${result.unit_count} 个单元${dup}`);
+    const actionText = state.importAppendBookId !== null ? "已添加" : "已导入";
+    showToast(`${actionText} ${result.word_count} 个单词 / ${result.unit_count} 个单元${dup}`);
     const dialog = $("#importDialog");
     dialog.close();
     resetImportDialog();
+    state.importAppendBookId = null;
     state.activeBookId = result.book_id;
     state.selectedUnits = new Set();
     state.exportUnits = new Set();
@@ -744,10 +752,29 @@ function resetImportDialog() {
   $("#importName").value = "";
   $("#importStatus").textContent = "";
   $("#fileMeta").textContent = "";
+  $("#importDialogTitle").textContent = "导入词书";
+  $("#importNameLabel").textContent = "词书名";
+  $("#replaceSameLabel").textContent = "同名词书直接覆盖旧版本";
+  $("#importName").disabled = false;
+  $("#replaceSame").disabled = false;
+  $("#doImportBtn").textContent = "开始导入";
 }
 
-function openImportDialog(mode = "file") {
+function openImportDialog(mode = "file", appendBookId = null) {
+  resetImportDialog();
+  state.importAppendBookId = appendBookId;
   $("#importDialog").showModal();
+  if (appendBookId !== null) {
+    const book = state.books.find((item) => item.id === appendBookId);
+    $("#importDialogTitle").textContent = `向「${book?.name || "当前词书"}」添加单词`;
+    $("#importNameLabel").textContent = "当前词书";
+    $("#importName").value = book?.name || "";
+    $("#importName").disabled = true;
+    $("#replaceSame").checked = false;
+    $("#replaceSame").disabled = true;
+    $("#replaceSameLabel").textContent = "重复单词自动跳过，已有学习记录不会改变";
+    $("#doImportBtn").textContent = "添加到本书";
+  }
   setImportMode(mode);
   setTimeout(() => {
     if (mode === "file") $("#fileInput").click();
@@ -793,17 +820,70 @@ function bindEvents() {
     state.sessionCards = [];
     await refreshBooks(state.activeBookId);
   });
-  $("#deleteBookBtn").addEventListener("click", async () => {
+  const openRenameBook = () => {
     const book = currentBook();
     if (!book) return;
-    if (!window.confirm(`确定删除「${book.name}」？本机数据库里的旧版本会一并移除。`)) return;
-    await api("/api/delete-book", jsonOptions("POST", { book_id: book.id }));
-    state.activeBookId = null;
-    state.selectedUnits = new Set();
-    state.exportUnits = new Set();
-    state.sessionCards = [];
-    await refreshBooks();
-    showToast("词书已删除");
+    $("#renameInput").value = book.name;
+    $("#renameStatus").textContent = "";
+    $("#renameDialog").showModal();
+    $("#renameInput").focus();
+  };
+  $("#saveRenameBtn").addEventListener("click", async () => {
+    const book = currentBook();
+    const input = $("#renameInput");
+    const name = input.value.trim();
+    if (!book || !name) {
+      $("#renameStatus").textContent = "请输入词书名";
+      return;
+    }
+    if (name === book.name) {
+      $("#renameDialog").close();
+      return;
+    }
+    try {
+      await api("/api/rename-book", jsonOptions("POST", {
+        book_id: book.id,
+        name,
+      }));
+      $("#renameDialog").close();
+      await refreshBooks(book.id);
+      showToast("词书名称已更新");
+    } catch (err) {
+      $("#renameStatus").textContent = err.message;
+    }
+  });
+  $("#renameBookBtn").addEventListener("click", openRenameBook);
+  $("#addBookBtn").addEventListener("click", () => {
+    const book = currentBook();
+    if (book) openImportDialog("file", book.id);
+  });
+  $("#deleteBookBtn").addEventListener("click", () => {
+    const book = currentBook();
+    if (!book) return;
+    $("#deleteBookName").textContent = book.name;
+    $("#deleteBookStatus").textContent = "";
+    $("#deleteBookDialog").showModal();
+  });
+  $("#confirmDeleteBookBtn").addEventListener("click", async () => {
+    const book = currentBook();
+    if (!book) return;
+    const button = $("#confirmDeleteBookBtn");
+    button.disabled = true;
+    $("#deleteBookStatus").textContent = "正在删除...";
+    try {
+      await api("/api/delete-book", jsonOptions("POST", { book_id: book.id }));
+      $("#deleteBookDialog").close();
+      state.activeBookId = null;
+      state.selectedUnits = new Set();
+      state.exportUnits = new Set();
+      state.sessionCards = [];
+      await refreshBooks();
+      showToast("词书已删除");
+    } catch (err) {
+      $("#deleteBookStatus").textContent = err.message;
+    } finally {
+      button.disabled = false;
+    }
   });
   $("#unitGrid").addEventListener("change", (e) => {
     const input = e.target.closest("input[data-unit-id]");
