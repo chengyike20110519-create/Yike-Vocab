@@ -287,6 +287,17 @@ def mark_word(word_id: int, status: str) -> None:
         )
 
 
+def update_word_meaning(word_id: int, meaning: str) -> None:
+    clean_meaning = meaning.strip()
+    if not clean_meaning:
+        raise ValueError("中文释义不能为空")
+    with connect() as conn:
+        word = conn.execute("SELECT id FROM words WHERE id = ?", (word_id,)).fetchone()
+        if not word:
+            raise ValueError("找不到这个单词")
+        conn.execute("UPDATE words SET meaning = ? WHERE id = ?", (clean_meaning, word_id))
+
+
 def word_history(word_id: int) -> dict:
     with connect() as conn:
         word = conn.execute(
@@ -585,6 +596,11 @@ class VocabularyHandler(BaseHTTPRequestHandler):
                 word_id = int(payload["word_id"])
                 status = str(payload.get("status", ""))
                 mark_word(word_id, status)
+                self._send_json(200, {"ok": True})
+                return
+            if path == "/api/update-meaning":
+                word_id = int(payload["word_id"])
+                update_word_meaning(word_id, str(payload.get("meaning", "")))
                 self._send_json(200, {"ok": True})
                 return
             if path == "/api/reset-progress":

@@ -5,6 +5,8 @@ const PUBLIC_DEMO =
   location.protocol !== "file:" &&
   !["localhost", "127.0.0.1"].includes(location.hostname);
 const SESSION_KEY = "vocab-demo-session";
+const LEARN_RESUME_KEY = "yike-learn-resume";
+const DEFAULT_BOOK_KEY = "yike-default-book";
 
 function demoSessionId() {
   if (!PUBLIC_DEMO) return "";
@@ -27,10 +29,12 @@ const state = {
   order: "shuffle",
   exportMode: "all",
   exportContent: "blank",
+  learnMode: "normal",
   sessionCards: [],
   sessionIndex: 0,
   sessionRatings: { know: 0, fuzzy: 0, unknown: 0 },
   sessionRated: {},
+  quizPool: [],
   lastSession: [],
   previewCards: [],
   bookDirty: false,
@@ -55,6 +59,125 @@ function esc(value) {
 
 function currentBook() {
   return state.books.find((b) => b.id === state.activeBookId) || null;
+}
+
+function readDefaultBookId() {
+  try {
+    const value = Number(localStorage.getItem(DEFAULT_BOOK_KEY));
+    return Number.isInteger(value) && value > 0 ? value : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function writeDefaultBookId(bookId) {
+  try {
+    if (bookId) localStorage.setItem(DEFAULT_BOOK_KEY, String(bookId));
+    else localStorage.removeItem(DEFAULT_BOOK_KEY);
+  } catch (err) {
+    // Some browsers restrict storage for file:// pages.
+  }
+}
+
+function resumeStorageKey(bookId) {
+  return `${LEARN_RESUME_KEY}:${bookId}`;
+}
+
+function readLearnResume(bookId) {
+  if (!bookId) return null;
+  try {
+    const raw = localStorage.getItem(resumeStorageKey(bookId));
+    if (!raw) return null;
+    const resume = JSON.parse(raw);
+    if (!Array.isArray(resume.cards) || !resume.cards.length) return null;
+    if (!Number.isInteger(resume.index) || resume.index < 0 || resume.index >= resume.cards.length) {
+      try {
+        localStorage.removeItem(resumeStorageKey(bookId));
+      } catch (err) {
+        // Ignore storage restrictions on file:// pages.
+      }
+      return null;
+    }
+    return resume;
+  } catch (err) {
+    try {
+      localStorage.removeItem(resumeStorageKey(bookId));
+    } catch (storageErr) {
+      // Ignore storage restrictions on file:// pages.
+    }
+    return null;
+  }
+}
+
+function saveLearnResume() {
+  const book = currentBook();
+  if (!book || !state.sessionCards.length || state.sessionIndex >= state.sessionCards.length) return;
+  const resume = {
+    bookId: book.id,
+    bookName: book.name,
+    cards: state.sessionCards,
+    index: state.sessionIndex,
+    rated: state.sessionRated,
+    mode: state.learnMode,
+    quizPool: state.quizPool,
+    savedAt: Date.now(),
+  };
+  try {
+    localStorage.setItem(resumeStorageKey(book.id), JSON.stringify(resume));
+  } catch (err) {
+    // Some browsers restrict storage for file:// pages; the running session still works.
+  }
+}
+
+function clearLearnResume(bookId = currentBook()?.id) {
+  if (!bookId) return;
+  try {
+    localStorage.removeItem(resumeStorageKey(bookId));
+  } catch (err) {
+    // Ignore storage restrictions while finishing the session.
+  }
+}
+
+function renderLearnResume() {
+  const panel = $("#resumeLearnPanel");
+  const book = currentBook();
+  const resume = book ? readLearnResume(book.id) : null;
+  if (!panel) return;
+  if (!resume) {
+    panel.classList.add("hidden");
+    panel.innerHTML = "";
+    return;
+  }
+  const completed = resume.index;
+  const total = resume.cards.length;
+  const percent = Math.round((completed / total) * 100);
+  panel.classList.remove("hidden");
+  panel.innerHTML = `
+    <div class="resume-learn-copy">
+      <strong>要继续上次的速记吗？</strong>
+      <span>已完成 ${completed} / ${total} 个单词，${resume.mode === "quiz" ? "三选一速记" : "普通卡片"}，顺序保持不变</span>
+    </div>
+    <div class="resume-learn-progress" aria-label="上次速记进度">
+      <div style="width: ${percent}%"></div>
+    </div>
+    <button class="primary-btn" id="resumeLearnBtn" type="button">继续速记</button>
+  `;
+  $("#resumeLearnBtn").addEventListener("click", () => {
+    beginSession(
+      resume.cards,
+      resume.index,
+      resume.rated || {},
+      resume.mode || "normal",
+      resume.quizPool || resume.cards,
+    );
+    switchView("learn");
+  });
+}
+
+function updateLearnModeButtons() {
+  $$("#learnModeSwitch .seg-btn").forEach((item) => {
+    item.classList.toggle("active", item.dataset.learnMode === state.learnMode);
+  });
 }
 
 function activeViewName() {
@@ -100,7 +223,13 @@ async function refreshBooks(preferredId = null) {
   state.books = data.books || [];
   state.bookDirty = false;
   if (!state.activeBookId || !state.books.some((b) => b.id === state.activeBookId)) {
-    state.activeBookId = preferredId || state.books[0]?.id || null;
+    const defaultId = readDefaultBookId();
+    state.activeBookId =
+      preferredId ||
+      (defaultId && state.books.some((b) => b.id === defaultId) ? defaultId : null) ||
+      state.books[0]?.id ||
+      null;
+    if (defaultId && !state.books.some((b) => b.id === defaultId)) writeDefaultBookId(null);
   }
   if (!state.books.some((b) => b.id === state.activeBookId)) {
     state.selectedUnits = new Set();
@@ -116,12 +245,16 @@ function renderBooks() {
   $("#emptyState").classList.toggle("hidden", hasBooks);
   $("#bookBody").classList.toggle("hidden", !hasBooks);
   $("#bookSelect").classList.toggle("hidden", !hasBooks);
+  $("#defaultBookBtn").classList.toggle("hidden", !hasBooks);
   $("#renameBookBtn").classList.toggle("hidden", !hasBooks);
   $("#addBookBtn").classList.toggle("hidden", !hasBooks);
   $("#deleteBookBtn").classList.toggle("hidden", !hasBooks);
   $("#bookShortName").textContent = book ? `${book.name} · ${book.word_count} 词` : "本地词库";
   $("#bookTitle").textContent = book?.name || "我的词书";
   $("#bookSubtitle").textContent = book ? `${book.unit_count} 个单元` : "选择单元后开始背诵";
+  const defaultBookId = readDefaultBookId();
+  $("#defaultBookBtn").textContent = book && defaultBookId === book.id ? "已设为默认" : "设为默认";
+  $("#defaultBookBtn").disabled = Boolean(book && defaultBookId === book.id);
 
   const select = $("#bookSelect");
   select.innerHTML = "";
@@ -159,6 +292,7 @@ function renderBooks() {
     <button class="stat-item stat-btn" data-record-status="fuzzy" type="button"><strong>${stats.fuzzy}</strong><span>模糊</span></button>
     <button class="stat-item stat-btn" data-record-status="unknown" type="button"><strong>${stats.unknown}</strong><span>不认识</span></button>
   `;
+  renderLearnResume();
 
   const grid = $("#unitGrid");
   grid.innerHTML = "";
@@ -284,30 +418,58 @@ function renderRecordList() {
     return;
   }
 
+  const unitOrder = new Map(book.units.map((unit, index) => [unit.id, index]));
+  const grouped = new Map();
   cards.forEach((card) => {
-    const row = document.createElement("div");
-    row.className = "record-row";
-    row.dataset.wordId = String(card.id);
-    row.innerHTML = `
-      <button class="record-word" type="button" data-show-history="${card.id}" aria-label="查看点击记录">
-        <strong>${esc(card.word)}</strong>
-        <span class="record-meta">
-          <span>${esc(card.unit_name)}</span>
-          ${card.phonetic ? `<span>${esc(card.phonetic)}</span>` : ""}
-          ${card.pos ? `<span>${esc(card.pos)}</span>` : ""}
-          <span>${recordStatusLabel(card.status)}</span>
-          <span>认识 ${card.know_count || 0} · 模糊 ${card.fuzzy_count || 0} · 不认识 ${card.unknown_count || 0}</span>
-        </span>
-        <span class="record-meaning">${esc(card.meaning || card.meaning_en || "暂无释义")}</span>
-      </button>
-      <div class="record-actions">
-        <button class="record-state-btn know ${card.status === "know" ? "active" : ""}" data-mark-status="know" data-word-id="${card.id}" type="button">认识</button>
-        <button class="record-state-btn fuzzy ${card.status === "fuzzy" ? "active" : ""}" data-mark-status="fuzzy" data-word-id="${card.id}" type="button">模糊</button>
-        <button class="record-state-btn unknown ${card.status === "unknown" ? "active" : ""}" data-mark-status="unknown" data-word-id="${card.id}" type="button">不认识</button>
-      </div>
-    `;
-    list.appendChild(row);
+    const key = card.unit_id ?? card.unit_name;
+    if (!grouped.has(key)) grouped.set(key, { name: card.unit_name, cards: [] });
+    grouped.get(key).cards.push(card);
   });
+
+  Array.from(grouped.values())
+    .sort((a, b) => {
+      const aId = a.cards[0]?.unit_id;
+      const bId = b.cards[0]?.unit_id;
+      return (unitOrder.get(aId) ?? Number.MAX_SAFE_INTEGER) -
+        (unitOrder.get(bId) ?? Number.MAX_SAFE_INTEGER);
+    })
+    .forEach((group) => {
+      const section = document.createElement("section");
+      section.className = "record-unit-group";
+      section.innerHTML = `
+        <div class="record-unit-heading">
+          <strong>${esc(group.name || "未分组")}</strong>
+          <span>${group.cards.length} 个单词</span>
+        </div>
+      `;
+      const rows = document.createElement("div");
+      rows.className = "record-unit-words";
+      group.cards.forEach((card) => {
+        const row = document.createElement("div");
+        row.className = "record-row";
+        row.dataset.wordId = String(card.id);
+        row.innerHTML = `
+          <button class="record-word" type="button" data-show-history="${card.id}" aria-label="查看点击记录">
+            <strong>${esc(card.word)}</strong>
+            <span class="record-meta">
+              ${card.phonetic ? `<span>${esc(card.phonetic)}</span>` : ""}
+              ${card.pos ? `<span>${esc(card.pos)}</span>` : ""}
+              <span>${recordStatusLabel(card.status)}</span>
+              <span>认识 ${card.know_count || 0} · 模糊 ${card.fuzzy_count || 0} · 不认识 ${card.unknown_count || 0}</span>
+            </span>
+            <span class="record-meaning">${esc(card.meaning || card.meaning_en || "暂无释义")}</span>
+          </button>
+          <div class="record-actions">
+            <button class="record-state-btn know ${card.status === "know" ? "active" : ""}" data-mark-status="know" data-word-id="${card.id}" type="button">认识</button>
+            <button class="record-state-btn fuzzy ${card.status === "fuzzy" ? "active" : ""}" data-mark-status="fuzzy" data-word-id="${card.id}" type="button">模糊</button>
+            <button class="record-state-btn unknown ${card.status === "unknown" ? "active" : ""}" data-mark-status="unknown" data-word-id="${card.id}" type="button">不认识</button>
+          </div>
+        `;
+        rows.appendChild(row);
+      });
+      section.appendChild(rows);
+      list.appendChild(section);
+    });
 }
 
 async function openWordHistory(wordId) {
@@ -479,7 +641,13 @@ async function startLearn(order) {
       renderLearnSetup();
       return;
     }
-    beginSession(data.cards);
+    let quizPool = data.cards;
+    if (state.learnMode === "quiz") {
+      const allCards = await api(`/api/cards?book=${book.id}&shuffle=0`);
+      quizPool = allCards.cards;
+    }
+    clearLearnResume(book.id);
+    beginSession(data.cards, 0, {}, state.learnMode, quizPool);
     switchView("learn");
   } catch (err) {
     showToast(err.message, "error");
@@ -487,11 +655,14 @@ async function startLearn(order) {
   }
 }
 
-function beginSession(cards) {
+function beginSession(cards, startIndex = 0, rated = {}, mode = state.learnMode, quizPool = cards) {
   state.sessionCards = cards;
-  state.sessionIndex = 0;
+  state.sessionIndex = startIndex;
   state.sessionRatings = { know: 0, fuzzy: 0, unknown: 0 };
-  state.sessionRated = {};
+  state.sessionRated = rated;
+  state.learnMode = mode === "quiz" ? "quiz" : "normal";
+  state.quizPool = Array.isArray(quizPool) && quizPool.length ? quizPool : cards;
+  updateLearnModeButtons();
   state.lastSession = cards;
   $("#learnFinished").classList.add("hidden");
   $("#learnRunning").classList.remove("hidden");
@@ -508,9 +679,19 @@ function renderCard() {
   $("#cardWord").textContent = card.word;
   $("#cardPhonetic").textContent = card.phonetic || "";
   $("#cardPos").textContent = card.pos ? `（${card.pos}）` : "";
+  $("#cardBackWord").textContent = card.word;
+  $("#cardBackPhonetic").textContent = card.phonetic || "";
+  $("#cardBackPos").textContent = card.pos ? `（${card.pos}）` : "";
   $("#cardMeaning").textContent = card.meaning || "暂无中文释义";
   $("#cardEnglish").textContent = card.meaning_en ? `English：${card.meaning_en}` : "";
   $("#cardMemory").textContent = card.memory ? `助记：${card.memory}` : "";
+  $("#quizWord").textContent = card.word;
+  $("#quizPhonetic").textContent = card.phonetic || "";
+  $("#quizPos").textContent = card.pos ? `（${card.pos}）` : "";
+  $("#cardArea").classList.toggle("hidden", state.learnMode === "quiz");
+  $("#quizPanel").classList.toggle("hidden", state.learnMode !== "quiz");
+  $(".rating-row").classList.toggle("hidden", state.learnMode === "quiz");
+  if (state.learnMode === "quiz") renderQuiz(card);
   $("#cardArea").classList.remove("revealed");
   $("#cardArea").scrollTop = 0;
   $("#learnUnitName").textContent = card.unit_name;
@@ -519,9 +700,142 @@ function renderCard() {
   $("#sessionStatus").classList.add("hidden");
   $("#sessionStatus").textContent = "";
   $("#prevCardBtn").disabled = state.sessionIndex === 0;
+  saveLearnResume();
+}
+
+function wordSimilarity(left, right) {
+  const a = String(left || "").toLowerCase().replace(/[^a-z]/g, "");
+  const b = String(right || "").toLowerCase().replace(/[^a-z]/g, "");
+  if (!a || !b) return 0;
+  let prefix = 0;
+  while (prefix < Math.min(a.length, b.length) && a[prefix] === b[prefix]) prefix += 1;
+  const chars = new Set(a);
+  const overlap = [...new Set(b)].filter((char) => chars.has(char)).length;
+  return prefix * 4 + overlap / Math.max(a.length, b.length);
+}
+
+function randomize(items) {
+  const result = items.slice();
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+function buildQuizOptions(card) {
+  const correct = String(card.meaning || "暂无中文释义").trim();
+  const pool = state.quizPool.filter((item) => item.id !== card.id && item.meaning);
+  const sameUnit = pool.filter((item) => item.unit_id === card.unit_id);
+  const ranked = (sameUnit.length >= 2 ? sameUnit : pool)
+    .map((item) => ({ item, score: wordSimilarity(card.word, item.word) + Math.random() * 1.5 }))
+    .sort((a, b) => b.score - a.score);
+  const meanings = [correct];
+  ranked.forEach(({ item }) => {
+    const meaning = String(item.meaning || "").trim();
+    if (meaning && !meanings.includes(meaning) && meanings.length < 3) meanings.push(meaning);
+  });
+  return randomize(meanings);
+}
+
+function renderQuiz(card) {
+  const options = buildQuizOptions(card);
+  const box = $("#quizOptions");
+  const result = $("#quizResult");
+  box.innerHTML = "";
+  result.className = "quiz-result hidden";
+  result.textContent = "";
+  options.forEach((meaning) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "quiz-option";
+    button.dataset.meaning = meaning;
+    button.textContent = meaning;
+    box.appendChild(button);
+  });
+  if (options.length < 3) {
+    const note = document.createElement("div");
+    note.className = "quiz-result";
+    note.textContent = "当前选词范围不足 3 个不同释义，已显示可用选项";
+    box.appendChild(note);
+  }
+}
+
+function answerQuiz(meaning) {
+  const card = state.sessionCards[state.sessionIndex];
+  if (!card || state.learnMode !== "quiz") return;
+  const buttons = $$("#quizOptions .quiz-option");
+  if (buttons.some((button) => button.disabled)) return;
+  const correct = String(card.meaning || "暂无中文释义").trim();
+  const isCorrect = meaning === correct;
+  buttons.forEach((button) => {
+    button.disabled = true;
+    if (button.dataset.meaning === correct) button.classList.add("correct");
+    if (button.dataset.meaning === meaning && !isCorrect) button.classList.add("wrong");
+  });
+  const result = $("#quizResult");
+  result.className = `quiz-result ${isCorrect ? "correct" : "wrong"}`;
+  result.textContent = isCorrect ? "答对了" : `答错了，正确答案：${correct}`;
+  markAnswered(isCorrect ? "know" : "unknown");
+  setTimeout(advanceCard, 700);
+}
+
+function markAnswered(rating) {
+  const card = state.sessionCards[state.sessionIndex];
+  if (!card) return;
+  const previousRating = state.sessionRated[card.id];
+  if (!previousRating || previousRating === "skip") state.sessionRatings[rating] += 1;
+  else if (previousRating !== rating) {
+    state.sessionRatings[previousRating] = Math.max(0, state.sessionRatings[previousRating] - 1);
+    state.sessionRatings[rating] += 1;
+  }
+  state.sessionRated[card.id] = rating;
+  state.bookDirty = true;
+  api("/api/mark", jsonOptions("POST", { word_id: card.id, status: rating })).catch(
+    (err) => showToast(err.message, "error"),
+  );
+}
+
+function openMeaningEditor() {
+  const card = state.sessionCards[state.sessionIndex];
+  if (!card) return;
+  $("#meaningWordLabel").textContent = card.word;
+  $("#meaningInput").value = card.meaning || "";
+  $("#meaningStatus").textContent = "";
+  $("#saveMeaningBtn").disabled = false;
+  $("#meaningDialog").showModal();
+  $("#meaningInput").focus();
+}
+
+async function saveMeaning() {
+  const card = state.sessionCards[state.sessionIndex];
+  const meaning = $("#meaningInput").value.trim();
+  if (!card || !meaning) {
+    $("#meaningStatus").textContent = "中文释义不能为空";
+    return;
+  }
+  const button = $("#saveMeaningBtn");
+  button.disabled = true;
+  $("#meaningStatus").textContent = "正在保存...";
+  try {
+    await api("/api/update-meaning", jsonOptions("POST", {
+      word_id: card.id,
+      meaning,
+    }));
+    state.sessionCards.forEach((item) => {
+      if (item.id === card.id) item.meaning = meaning;
+    });
+    $("#meaningDialog").close();
+    renderCard();
+    showToast("中文释义已保存，之后会继续使用新释义");
+  } catch (err) {
+    $("#meaningStatus").textContent = err.message;
+    button.disabled = false;
+  }
 }
 
 async function rateCurrent(rating) {
+  if (state.learnMode === "quiz") return;
   const card = state.sessionCards[state.sessionIndex];
   if (!card) return;
   if (!$("#cardArea").classList.contains("revealed")) {
@@ -550,6 +864,7 @@ function previousCard() {
   if (state.sessionIndex <= 0) return;
   state.sessionIndex -= 1;
   renderCard();
+  saveLearnResume();
 }
 
 function revealCard() {
@@ -573,7 +888,22 @@ function advanceCard() {
   }
 }
 
+function shuffleDifferent(cards, previousCards = []) {
+  const shuffled = cards.slice();
+  if (shuffled.length < 2) return shuffled;
+  const previous = previousCards.map((card) => card.id).join(",");
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    if (shuffled.map((card) => card.id).join(",") !== previous) return shuffled;
+  }
+  return shuffled.slice(1).concat(shuffled[0]);
+}
+
 function finishSession() {
+  clearLearnResume();
   $("#learnRunning").classList.add("hidden");
   $("#learnFinished").classList.remove("hidden");
   const ratings = state.sessionRatings;
@@ -593,19 +923,26 @@ function finishSession() {
   `;
   const actions = document.createElement("div");
   actions.className = "finish-actions";
+  const nextRoundBtn = document.createElement("button");
+  nextRoundBtn.className = "primary-btn";
+  nextRoundBtn.textContent = "再来一轮（换个顺序）";
+  nextRoundBtn.addEventListener("click", () => {
+    const nextCards = shuffleDifferent(state.sessionCards, state.sessionCards);
+    beginSession(nextCards, 0, {}, state.learnMode, state.quizPool);
+  });
   const weakBtn = document.createElement("button");
-  weakBtn.className = "primary-btn";
+  weakBtn.className = "ghost-btn";
   weakBtn.textContent = `复习模糊与不认识（${weak}）`;
   weakBtn.disabled = weak === 0;
   weakBtn.addEventListener("click", () => {
-    const weakCards = state.sessionCards.filter(isWeak);
-    beginSession(weakCards);
+    const weakCards = shuffleDifferent(state.sessionCards.filter(isWeak));
+    beginSession(weakCards, 0, {}, state.learnMode, state.quizPool);
   });
   const backBtn = document.createElement("button");
   backBtn.className = "ghost-btn";
   backBtn.textContent = "回到词书";
   backBtn.addEventListener("click", () => switchView("books"));
-  actions.append(weakBtn, backBtn);
+  actions.append(nextRoundBtn, weakBtn, backBtn);
   panel.append(title, summary, actions);
 }
 
@@ -804,6 +1141,8 @@ function updateExportContentUi() {
 }
 
 function bindEvents() {
+  window.addEventListener("beforeunload", saveLearnResume);
+  window.addEventListener("pagehide", saveLearnResume);
   $$(".nav-btn").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
   document.addEventListener("click", (e) => {
     const importTarget = e.target.closest("[data-open-import]");
@@ -819,6 +1158,13 @@ function bindEvents() {
     state.exportUnits = new Set();
     state.sessionCards = [];
     await refreshBooks(state.activeBookId);
+  });
+  $("#defaultBookBtn").addEventListener("click", () => {
+    const book = currentBook();
+    if (!book) return;
+    writeDefaultBookId(book.id);
+    renderBooks();
+    showToast(`已将「${book.name}」设为默认词书`);
   });
   const openRenameBook = () => {
     const book = currentBook();
@@ -976,17 +1322,44 @@ function bindEvents() {
     state.order = btn.dataset.order;
     updateOrderButtons();
   });
+  $("#learnModeSwitch").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-learn-mode]");
+    if (!btn) return;
+    state.learnMode = btn.dataset.learnMode === "quiz" ? "quiz" : "normal";
+    updateLearnModeButtons();
+  });
   $("#startLearnBtn").addEventListener("click", () => startLearn(state.order));
   $("#exitLearnBtn").addEventListener("click", () => {
+    saveLearnResume();
     state.sessionCards = [];
     switchView(state.learnReturnView);
   });
-  $("#cardArea").addEventListener("click", () => {
+  $("#editMeaningBtn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    openMeaningEditor();
+  });
+  $("#saveMeaningBtn").addEventListener("click", saveMeaning);
+  $("#meaningInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveMeaning();
+  });
+  $("#cardArea").addEventListener("click", (e) => {
+    if (e.target.closest("#editMeaningBtn")) return;
     if (!$("#cardArea").classList.contains("revealed")) revealCard();
+  });
+  $("#cardArea").addEventListener("keydown", (e) => {
+    if (e.target.closest("#editMeaningBtn")) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (!$("#cardArea").classList.contains("revealed")) revealCard();
+    }
   });
   $(".rating-row").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-rating]");
     if (btn) rateCurrent(btn.dataset.rating);
+  });
+  $("#quizOptions").addEventListener("click", (e) => {
+    const btn = e.target.closest(".quiz-option");
+    if (btn) answerQuiz(btn.dataset.meaning);
   });
   $("#skipCardBtn").addEventListener("click", skipCard);
   $("#prevCardBtn").addEventListener("click", previousCard);

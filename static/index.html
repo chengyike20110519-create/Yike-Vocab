@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>亦可速记</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260909-7">
 </head>
 <body>
   <header class="topbar">
@@ -31,6 +31,7 @@
         </div>
         <div class="head-actions">
           <select id="bookSelect" class="select" aria-label="切换词书"></select>
+          <button class="ghost-btn" id="defaultBookBtn" type="button">设为默认</button>
           <button class="ghost-btn" id="renameBookBtn" type="button">改名</button>
           <button class="primary-btn" id="addBookBtn" type="button">本书添加单词</button>
           <button class="ghost-btn danger-ghost" id="deleteBookBtn" type="button">删除当前词书</button>
@@ -48,6 +49,7 @@
 
       <div id="bookBody" class="hidden">
         <div class="stat-strip" id="statStrip"></div>
+        <div id="resumeLearnPanel" class="resume-learn-panel hidden"></div>
 
         <div class="unit-toolbar">
           <div class="selection-summary">
@@ -67,6 +69,10 @@
             <button class="seg-btn" data-order="asc" type="button">正序</button>
             <button class="seg-btn active" data-order="shuffle" type="button">乱序</button>
           </div>
+          <div class="segmented" id="learnModeSwitch" role="group" aria-label="学习模式">
+            <button class="seg-btn active" data-learn-mode="normal" type="button">普通卡片</button>
+            <button class="seg-btn" data-learn-mode="quiz" type="button">三选一速记</button>
+          </div>
           <button class="primary-btn large-btn" id="startLearnBtn" type="button" disabled>开始背单词</button>
         </div>
       </div>
@@ -84,7 +90,7 @@
         </div>
         <div class="progress-track"><div class="progress-fill" id="learnProgress"></div></div>
 
-        <button class="flashcard" id="cardArea" type="button" aria-label="翻转卡片">
+        <div class="flashcard" id="cardArea" role="button" tabindex="0" aria-label="翻转卡片">
           <span class="card-front">
             <span class="card-word" id="cardWord"></span>
             <span class="card-side" id="cardPhonetic"></span>
@@ -92,12 +98,27 @@
             <span class="card-hint">点击卡片查看释义</span>
           </span>
           <span class="card-back">
-            <span class="card-label">中文释义</span>
+            <span class="card-revealed-word" id="cardBackWord"></span>
+            <span class="card-revealed-side" id="cardBackPhonetic"></span>
+            <span class="card-revealed-side" id="cardBackPos"></span>
+            <span class="card-label-row">
+              <span class="card-label">中文释义</span>
+              <button class="card-edit-btn" id="editMeaningBtn" type="button">编辑</button>
+            </span>
             <span class="card-meaning" id="cardMeaning"></span>
             <span class="card-english" id="cardEnglish"></span>
             <span class="card-memory" id="cardMemory"></span>
           </span>
-        </button>
+        </div>
+
+        <div class="quiz-panel hidden" id="quizPanel">
+          <div class="quiz-word" id="quizWord"></div>
+          <div class="quiz-side" id="quizPhonetic"></div>
+          <div class="quiz-side" id="quizPos"></div>
+          <div class="quiz-prompt">选择这个英文单词对应的中文释义</div>
+          <div class="quiz-options" id="quizOptions"></div>
+          <div class="quiz-result hidden" id="quizResult"></div>
+        </div>
 
         <div class="rating-row">
           <button class="rating-btn know" data-rating="know" type="button">
@@ -285,8 +306,27 @@
     </form>
   </dialog>
 
+  <dialog id="meaningDialog" class="modal">
+    <form method="dialog" class="modal-shell" id="meaningModalShell">
+      <div class="modal-head">
+        <h2>修改中文释义</h2>
+        <button class="icon-btn" value="cancel" type="submit" aria-label="关闭">×</button>
+      </div>
+      <p class="subtle" id="meaningWordLabel"></p>
+      <label class="form-field">
+        <span>中文释义</span>
+        <textarea id="meaningInput" rows="4" placeholder="填写这个单词的中文意思"></textarea>
+      </label>
+      <div id="meaningStatus" class="subtle"></div>
+      <div class="modal-footer">
+        <button class="ghost-btn" value="cancel" type="submit">取消</button>
+        <button class="primary-btn" id="saveMeaningBtn" type="button">保存释义</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="toastRegion" class="toast-region" aria-live="polite"></div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=20260909-7"></script>
 </body>
 </html>
