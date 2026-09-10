@@ -1366,6 +1366,16 @@ legend {
   text-align: center;
 }
 
+.stats-source-note {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 13px;
+}
+
 .stats-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
@@ -1414,6 +1424,86 @@ legend {
   border-radius: 8px;
   background: var(--panel);
   box-shadow: var(--shadow);
+}
+
+.stats-calendar-card {
+  margin-bottom: 16px;
+}
+
+.stats-calendar {
+  display: grid;
+  gap: 8px;
+}
+
+.cal-weekdays,
+.cal-cells {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.cal-weekdays span {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.cal-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 58px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #e8edf3;
+  font-size: 11px;
+}
+
+.cal-cell.blank {
+  background: transparent;
+}
+
+.cal-cell.level-1 {
+  background: #dbeafe;
+}
+
+.cal-cell.level-2 {
+  background: #93c5fd;
+}
+
+.cal-cell.level-3 {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+.cal-cell.level-4 {
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+.cal-cell.today {
+  outline: 2px solid #111827;
+  outline-offset: 1px;
+}
+
+.cal-day-num {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cal-day-meta {
+  opacity: 0.85;
+}
+
+@media (max-width: 640px) {
+  .cal-cell {
+    min-height: 44px;
+    padding: 4px 5px;
+  }
+
+  .cal-day-meta {
+    font-size: 10px;
+  }
 }
 
 .stats-card-head {

@@ -151,6 +151,7 @@
 
       <div id="statsLoading" class="stats-loading">正在读取学习数据...</div>
       <div id="statsContent" class="hidden">
+        <div id="statsSourceNote" class="stats-source-note hidden"></div>
         <div id="statsSummary" class="stats-summary-grid"></div>
 
         <div class="stats-layout">
@@ -203,6 +204,25 @@
             <div id="statsRecent" class="stats-recent-list"></div>
           </section>
         </div>
+
+        <section class="stats-card stats-calendar-card">
+          <div class="stats-card-head">
+            <div>
+              <strong>每日新词日历</strong>
+              <span id="statsCalendarTitle"></span>
+            </div>
+            <div class="heatmap-legend" aria-label="打卡程度">
+              <span>少</span>
+              <i class="level-0"></i>
+              <i class="level-1"></i>
+              <i class="level-2"></i>
+              <i class="level-3"></i>
+              <i class="level-4"></i>
+              <span>多</span>
+            </div>
+          </div>
+          <div id="statsCalendar" class="stats-calendar"></div>
+        </section>
 
         <section class="stats-card stats-log-card">
           <div class="stats-card-head">

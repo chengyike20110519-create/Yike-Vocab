@@ -6,6 +6,7 @@ const PUBLIC_DEMO =
   !["localhost", "127.0.0.1"].includes(location.hostname);
 const SESSION_KEY = "vocab-demo-session";
 const LEARN_RESUME_KEY = "yike-learn-resume";
+const STUDY_LOG_KEY = "yike-study-log";
 const DEFAULT_BOOK_KEY = "yike-default-book";
 
 function demoSessionId() {
@@ -791,6 +792,7 @@ function markAnswered(rating) {
   }
   state.sessionRated[card.id] = rating;
   state.bookDirty = true;
+  recordStudyEvent(card, rating);
   api("/api/mark", jsonOptions("POST", { word_id: card.id, status: rating })).catch(
     (err) => showToast(err.message, "error"),
   );
@@ -854,6 +856,7 @@ async function rateCurrent(rating) {
   $("#sessionStatus").textContent = `${card.word} 已标记`;
   $("#sessionStatus").classList.remove("hidden");
   state.bookDirty = true;
+  recordStudyEvent(card, rating);
   api("/api/mark", jsonOptions("POST", { word_id: card.id, status: rating })).catch(
     (err) => showToast(err.message, "error"),
   );
@@ -1009,6 +1012,136 @@ function statusLabel(status) {
   return { know: "认识", fuzzy: "模糊", unknown: "不认识" }[status] || "未标记";
 }
 
+const STUDY_STATUSES = ["know", "fuzzy", "unknown"];
+const LOCAL_LOG_LIMIT = 10000;
+
+function recordStudyEvent(card, rating) {
+  if (!card || !STUDY_STATUSES.includes(rating)) return;
+  try {
+    const raw = localStorage.getItem(STUDY_LOG_KEY);
+    const log = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(log)) return;
+    const book = currentBook();
+    log.push({
+      t: Date.now(),
+      id: card.id,
+      word: card.word,
+      meaning: card.meaning || "",
+      status: rating,
+      book: book ? book.name : "",
+      unit: card.unit_name || "",
+    });
+    if (log.length > LOCAL_LOG_LIMIT) log.splice(0, log.length - LOCAL_LOG_LIMIT);
+    localStorage.setItem(STUDY_LOG_KEY, JSON.stringify(log));
+  } catch (err) {
+    // file:// 页面可能禁用 localStorage，忽略即可。
+  }
+}
+
+function localDateTimeKey(ts) {
+  const d = new Date(ts);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${localDateKey(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function buildLocalStudyLog(days = 84, recentLimit = 20) {
+  let events = [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STUDY_LOG_KEY) || "[]");
+    if (Array.isArray(parsed)) events = parsed.filter((e) => e && Number.isFinite(e.t));
+  } catch (err) {
+    events = [];
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayKey = localDateKey(today);
+
+  const sorted = [...events].sort((a, b) => a.t - b.t);
+  const byDay = new Map();
+  const seenWords = new Set();
+  sorted.forEach((event) => {
+    const key = localDateKey(new Date(event.t));
+    if (!byDay.has(key)) {
+      byDay.set(key, { date: key, total: 0, know: 0, fuzzy: 0, unknown: 0, words: new Set(), new_words: 0 });
+    }
+    const day = byDay.get(key);
+    day.total += 1;
+    if (STUDY_STATUSES.includes(event.status)) day[event.status] += 1;
+    day.words.add(event.id);
+    if (!seenWords.has(event.id)) {
+      seenWords.add(event.id);
+      day.new_words += 1;
+    }
+  });
+
+  const activeDates = new Set(byDay.keys());
+  const sortedDates = Array.from(activeDates).sort();
+  let longestStreak = 0;
+  let running = 0;
+  let previous = null;
+  sortedDates.forEach((key) => {
+    running = previous && key === localDateKey(new Date(previous.getTime() + 86400000)) ? running + 1 : 1;
+    longestStreak = Math.max(longestStreak, running);
+    previous = parseDateKey(key);
+  });
+  const streakFrom = (anchor) => {
+    let streak = 0;
+    let cursor = new Date(anchor.getTime());
+    while (activeDates.has(localDateKey(cursor))) {
+      streak += 1;
+      cursor = new Date(cursor.getTime() - 86400000);
+    }
+    return streak;
+  };
+  const yesterday = new Date(today.getTime() - 86400000);
+  const currentStreak = activeDates.has(todayKey)
+    ? streakFrom(today)
+    : activeDates.has(localDateKey(yesterday))
+      ? streakFrom(yesterday)
+      : 0;
+
+  const windowStart = new Date(today.getTime() - (days - 1) * 86400000);
+  const windowKey = localDateKey(windowStart);
+  const dayList = Array.from(byDay.values())
+    .filter((day) => day.date >= windowKey)
+    .map((day) => ({
+      date: day.date,
+      total: day.total,
+      know: day.know,
+      fuzzy: day.fuzzy,
+      unknown: day.unknown,
+      word_count: day.words.size,
+      new_words: day.new_words,
+    }))
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+
+  const todayLog = byDay.get(todayKey);
+  return {
+    local: true,
+    summary: {
+      current_streak: currentStreak,
+      longest_streak: longestStreak,
+      active_days: activeDates.size,
+      total_events: events.length,
+      learned_words: seenWords.size,
+      touched_books: new Set(events.map((e) => e.book).filter(Boolean)).size,
+      today_events: todayLog ? todayLog.total : 0,
+      today_words: todayLog ? todayLog.words.size : 0,
+      today_new_words: todayLog ? todayLog.new_words : 0,
+      today_checked_in: Boolean(todayLog),
+    },
+    days: dayList,
+    recent_events: sorted.slice(-recentLimit).reverse().map((event) => ({
+      created_at: localDateTimeKey(event.t),
+      status: event.status,
+      word: event.word,
+      meaning: event.meaning || "",
+      unit_name: event.unit || "",
+      book_name: event.book || "",
+    })),
+  };
+}
+
 function renderStudySummary(summary) {
   const box = $("#statsSummary");
   const cards = [
@@ -1018,9 +1151,14 @@ function renderStudySummary(summary) {
       note: `最长 ${summary.longest_streak} 天`,
     },
     {
+      value: summary.learned_words,
+      label: "新学单词",
+      note: "首次标记的单词",
+    },
+    {
       value: summary.active_days,
       label: "累计打卡",
-      note: `覆盖 ${summary.learned_words} 个单词`,
+      note: `活跃 ${summary.active_days} 天`,
     },
     {
       value: summary.total_events,
@@ -1030,7 +1168,9 @@ function renderStudySummary(summary) {
     {
       value: summary.today_events,
       label: "今日记录",
-      note: summary.today_checked_in ? "今日已打卡" : "今天还没开始",
+      note: summary.today_checked_in
+        ? `今日已打卡 · 新学 ${summary.today_new_words || 0}`
+        : "今天还没开始",
     },
   ];
   box.innerHTML = cards.map((card) => `
@@ -1070,7 +1210,7 @@ function renderStudyHeatmap(days) {
     cell.className = `heatmap-cell level-${heatLevel(total)}`;
     if (key === localDateKey(today)) cell.classList.add("today");
     cell.title = total
-      ? `${key}：学习 ${total} 次，覆盖 ${day.word_count} 个单词`
+      ? `${key}：学习 ${total} 次，覆盖 ${day.word_count} 个单词，新学 ${day.new_words || 0} 个`
       : `${key}：未打卡`;
     cell.setAttribute("aria-label", cell.title);
     grid.appendChild(cell);
@@ -1102,7 +1242,7 @@ function renderStudyToday(summary, days) {
       <span class="fuzzy">模糊 ${day.fuzzy}</span>
       <span class="unknown">不认识 ${day.unknown}</span>
     </div>
-    <p>今天覆盖 ${day.word_count} 个不同单词。</p>
+    <p>今天覆盖 ${day.word_count} 个不同单词，新学 ${day.new_words || 0} 个。</p>
   `;
 }
 
@@ -1169,7 +1309,7 @@ function renderStudyLog(days) {
     const details = document.createElement("div");
     details.className = "stats-log-details";
     const words = document.createElement("span");
-    words.textContent = `${day.word_count} 个单词`;
+    words.textContent = `${day.word_count} 个单词 · 新学 ${day.new_words || 0}`;
     const pills = document.createElement("span");
     pills.className = "stats-status-pills";
     pills.innerHTML = `
@@ -1183,6 +1323,73 @@ function renderStudyLog(days) {
   });
 }
 
+function renderStudyCalendar(days) {
+  const grid = $("#statsCalendar");
+  if (!grid) return;
+  const byDate = new Map(days.map((day) => [day.date, day]));
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  $("#statsCalendarTitle").textContent = `${year}年${month + 1}月`;
+  grid.innerHTML = "";
+
+  const headRow = document.createElement("div");
+  headRow.className = "cal-weekdays";
+  ["一", "二", "三", "四", "五", "六", "日"].forEach((label) => {
+    const item = document.createElement("span");
+    item.textContent = label;
+    headRow.appendChild(item);
+  });
+  grid.appendChild(headRow);
+
+  const cells = document.createElement("div");
+  cells.className = "cal-cells";
+  const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
+  for (let i = 0; i < firstWeekday; i += 1) {
+    const blank = document.createElement("div");
+    blank.className = "cal-cell blank";
+    cells.appendChild(blank);
+  }
+  const todayKey = localDateKey(now);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  for (let d = 1; d <= daysInMonth; d += 1) {
+    const key = localDateKey(new Date(year, month, d));
+    const day = byDate.get(key);
+    const total = day ? day.total : 0;
+    const cell = document.createElement("div");
+    cell.className = `cal-cell level-${heatLevel(total)}`;
+    if (key === todayKey) cell.classList.add("today");
+    const num = document.createElement("span");
+    num.className = "cal-day-num";
+    num.textContent = String(d);
+    cell.appendChild(num);
+    if (day) {
+      const meta = document.createElement("span");
+      meta.className = "cal-day-meta";
+      meta.textContent = `新 ${day.new_words || 0} · 记 ${total}`;
+      cell.appendChild(meta);
+      cell.title = `${key}：新学 ${day.new_words || 0} 个单词，共标记 ${total} 次`;
+    } else {
+      cell.title = `${key}：未打卡`;
+    }
+    cell.setAttribute("aria-label", cell.title);
+    cells.appendChild(cell);
+  }
+  grid.appendChild(cells);
+}
+
+function renderStudySourceNote(isLocal) {
+  const note = $("#statsSourceNote");
+  if (!note) return;
+  if (isLocal) {
+    note.textContent = "当前显示的是这台设备浏览器里的学习记录。启动本地服务（python3 app.py）后可查看完整数据。";
+    note.classList.remove("hidden");
+  } else {
+    note.textContent = "";
+    note.classList.add("hidden");
+  }
+}
+
 async function refreshStudyLog() {
   const loading = $("#statsLoading");
   const content = $("#statsContent");
@@ -1190,20 +1397,22 @@ async function refreshStudyLog() {
   loading.textContent = "正在读取学习数据...";
   loading.classList.remove("hidden");
   content.classList.add("hidden");
+  let data = null;
   try {
-    const data = await api("/api/study-log?days=84&events=20");
-    renderStudySummary(data.summary);
-    renderStudyHeatmap(data.days);
-    renderStudyToday(data.summary, data.days);
-    renderStudyRecent(data.recent_events);
-    renderStudyLog(data.days);
-    content.classList.remove("hidden");
-    loaded = true;
+    data = await api("/api/study-log?days=84&events=20");
   } catch (err) {
-    loading.textContent = err.message;
-  } finally {
-    if (loaded) loading.classList.add("hidden");
+    data = buildLocalStudyLog(84, 20);
   }
+  renderStudySourceNote(Boolean(data.local));
+  renderStudySummary(data.summary);
+  renderStudyHeatmap(data.days);
+  renderStudyCalendar(data.days);
+  renderStudyToday(data.summary, data.days);
+  renderStudyRecent(data.recent_events);
+  renderStudyLog(data.days);
+  content.classList.remove("hidden");
+  loaded = true;
+  if (loaded) loading.classList.add("hidden");
 }
 
 function switchView(name) {

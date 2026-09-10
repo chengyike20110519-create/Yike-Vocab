@@ -392,6 +392,17 @@ def study_log(days: int = 84, recent_limit: int = 20) -> dict:
             """,
             (window_start.isoformat(),),
         ).fetchall()
+        new_word_rows = conn.execute(
+            """
+            SELECT day, COUNT(*) AS new_words
+            FROM (
+                SELECT substr(MIN(created_at), 1, 10) AS day
+                FROM word_events
+                GROUP BY word_id
+            )
+            GROUP BY day
+            """
+        ).fetchall()
         recent_rows = conn.execute(
             """
             SELECT
@@ -441,6 +452,7 @@ def study_log(days: int = 84, recent_limit: int = 20) -> dict:
     else:
         current_streak = 0
 
+    new_word_map = {row["day"]: row["new_words"] for row in new_word_rows if row["day"]}
     recent_days = [
         {
             "date": row["day"],
@@ -449,6 +461,7 @@ def study_log(days: int = 84, recent_limit: int = 20) -> dict:
             "know": row["know_count"],
             "fuzzy": row["fuzzy_count"],
             "unknown": row["unknown_count"],
+            "new_words": new_word_map.get(row["day"], 0),
         }
         for row in daily_rows
     ]
@@ -466,6 +479,7 @@ def study_log(days: int = 84, recent_limit: int = 20) -> dict:
             "touched_books": totals["touched_books"] or 0,
             "today_events": today_log["total"] if today_log else 0,
             "today_words": today_log["word_count"] if today_log else 0,
+            "today_new_words": today_log["new_words"] if today_log else 0,
             "today_checked_in": bool(today_log),
         },
         "days": recent_days,
