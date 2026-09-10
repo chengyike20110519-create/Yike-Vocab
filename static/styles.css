@@ -1376,6 +1376,13 @@ legend {
   font-size: 13px;
 }
 
+.stats-line {
+  margin: 0 0 16px;
+  color: #344054;
+  font-size: 14px;
+  font-weight: 650;
+}
+
 .stats-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));

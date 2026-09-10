@@ -1142,44 +1142,16 @@ function buildLocalStudyLog(days = 84, recentLimit = 20) {
   };
 }
 
-function renderStudySummary(summary) {
-  const box = $("#statsSummary");
-  const cards = [
-    {
-      value: summary.current_streak,
-      label: "连续打卡",
-      note: `最长 ${summary.longest_streak} 天`,
-    },
-    {
-      value: summary.learned_words,
-      label: "新学单词",
-      note: "首次标记的单词",
-    },
-    {
-      value: summary.active_days,
-      label: "累计打卡",
-      note: `活跃 ${summary.active_days} 天`,
-    },
-    {
-      value: summary.total_events,
-      label: "学习记录",
-      note: `来自 ${summary.touched_books} 本词书`,
-    },
-    {
-      value: summary.today_events,
-      label: "今日记录",
-      note: summary.today_checked_in
-        ? `今日已打卡 · 新学 ${summary.today_new_words || 0}`
-        : "今天还没开始",
-    },
+function renderStatsLine(summary, local) {
+  const el = $("#statsLine");
+  if (!el) return;
+  const parts = [
+    `连续打卡 ${summary.current_streak} 天`,
+    `累计打卡 ${summary.active_days} 天`,
+    `学习记录 ${summary.total_events} 条`,
+    `新学 ${summary.learned_words} 个单词`,
   ];
-  box.innerHTML = cards.map((card) => `
-    <article class="stats-summary-card">
-      <strong>${card.value}</strong>
-      <span>${card.label}</span>
-      <small>${card.note}</small>
-    </article>
-  `).join("");
+  el.textContent = parts.join(" · ") + (local ? "（本机记录）" : "");
 }
 
 function heatLevel(total) {
@@ -1190,67 +1162,13 @@ function heatLevel(total) {
   return 4;
 }
 
-function renderStudyHeatmap(days) {
-  const grid = $("#statsHeatmap");
-  const byDate = new Map(days.map((day) => [day.date, day]));
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const mondayIndex = (today.getDay() + 6) % 7;
-  const start = new Date(today);
-  start.setDate(today.getDate() - 11 * 7 - mondayIndex);
-  $("#statsRangeText").textContent = `${localDateKey(start)} 至 ${localDateKey(today)}`;
-
-  grid.innerHTML = "";
-  const cursor = new Date(start);
-  while (cursor <= today) {
-    const key = localDateKey(cursor);
-    const day = byDate.get(key);
-    const total = day?.total || 0;
-    const cell = document.createElement("div");
-    cell.className = `heatmap-cell level-${heatLevel(total)}`;
-    if (key === localDateKey(today)) cell.classList.add("today");
-    cell.title = total
-      ? `${key}：学习 ${total} 次，覆盖 ${day.word_count} 个单词，新学 ${day.new_words || 0} 个`
-      : `${key}：未打卡`;
-    cell.setAttribute("aria-label", cell.title);
-    grid.appendChild(cell);
-    cursor.setDate(cursor.getDate() + 1);
-  }
-}
-
-function renderStudyToday(summary, days) {
-  const box = $("#statsToday");
-  const todayKey = localDateKey();
-  const day = days.find((item) => item.date === todayKey);
-  $("#statsTodayNote").textContent = summary.today_checked_in ? "已完成" : "待完成";
-  if (!day) {
-    box.innerHTML = `
-      <div class="stats-empty">
-        <strong>今天还没有打卡</strong>
-        <span>去词书里标记几个单词，日志会自动记录。</span>
-      </div>
-    `;
-    return;
-  }
-  box.innerHTML = `
-    <div class="stats-today-total">
-      <strong>${day.total}</strong>
-      <span>次学习记录</span>
-    </div>
-    <div class="stats-status-pills">
-      <span class="know">认识 ${day.know}</span>
-      <span class="fuzzy">模糊 ${day.fuzzy}</span>
-      <span class="unknown">不认识 ${day.unknown}</span>
-    </div>
-    <p>今天覆盖 ${day.word_count} 个不同单词，新学 ${day.new_words || 0} 个。</p>
-  `;
-}
-
 function renderStudyRecent(events) {
   const box = $("#statsRecent");
   box.innerHTML = "";
+  const counter = $("#statsRecentCount");
+  if (counter) counter.textContent = events.length ? `最近 ${events.length} 条` : "";
   if (!events.length) {
-    box.innerHTML = '<div class="stats-empty compact"><span>还没有学习记录。</span></div>';
+    box.innerHTML = '<div class="stats-empty compact"><span>还没有学习记录，去背几个单词吧。</span></div>';
     return;
   }
   events.forEach((event) => {
@@ -1273,52 +1191,11 @@ function renderStudyRecent(events) {
     const context = document.createElement("span");
     context.textContent = `${event.book_name} · ${event.unit_name}`;
     const time = document.createElement("time");
-    time.textContent = String(event.created_at || "").slice(11, 16);
+    time.textContent = dayLogLabel(String(event.created_at || "").slice(0, 10))
+      + " " + String(event.created_at || "").slice(11, 16);
     meta.append(status, context, time);
 
     row.append(main, meta);
-    box.appendChild(row);
-  });
-}
-
-function renderStudyLog(days) {
-  const box = $("#statsLogList");
-  box.innerHTML = "";
-  $("#statsLogCount").textContent = days.length ? `最近 ${days.length} 个有记录的日期` : "";
-  if (!days.length) {
-    box.innerHTML = `
-      <div class="stats-empty">
-        <strong>还没有打卡日志</strong>
-        <span>完成一次单词标记后，这里会按日期生成记录。</span>
-      </div>
-    `;
-    return;
-  }
-  days.forEach((day) => {
-    const row = document.createElement("article");
-    row.className = "stats-log-entry";
-
-    const heading = document.createElement("div");
-    heading.className = "stats-log-heading";
-    const date = document.createElement("strong");
-    date.textContent = dayLogLabel(day.date);
-    const total = document.createElement("span");
-    total.textContent = `${day.total} 次`;
-    heading.append(date, total);
-
-    const details = document.createElement("div");
-    details.className = "stats-log-details";
-    const words = document.createElement("span");
-    words.textContent = `${day.word_count} 个单词 · 新学 ${day.new_words || 0}`;
-    const pills = document.createElement("span");
-    pills.className = "stats-status-pills";
-    pills.innerHTML = `
-      <span class="know">认识 ${day.know}</span>
-      <span class="fuzzy">模糊 ${day.fuzzy}</span>
-      <span class="unknown">不认识 ${day.unknown}</span>
-    `;
-    details.append(words, pills);
-    row.append(heading, details);
     box.appendChild(row);
   });
 }
@@ -1330,7 +1207,7 @@ function renderStudyCalendar(days) {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
-  $("#statsCalendarTitle").textContent = `${year}年${month + 1}月`;
+  $("#statsCalendarTitle").textContent = `${year} 年 ${month + 1} 月`;
   grid.innerHTML = "";
 
   const headRow = document.createElement("div");
@@ -1378,41 +1255,25 @@ function renderStudyCalendar(days) {
   grid.appendChild(cells);
 }
 
-function renderStudySourceNote(isLocal) {
-  const note = $("#statsSourceNote");
-  if (!note) return;
-  if (isLocal) {
-    note.textContent = "当前显示的是这台设备浏览器里的学习记录。启动本地服务（python3 app.py）后可查看完整数据。";
-    note.classList.remove("hidden");
-  } else {
-    note.textContent = "";
-    note.classList.add("hidden");
-  }
-}
-
 async function refreshStudyLog() {
   const loading = $("#statsLoading");
   const content = $("#statsContent");
-  let loaded = false;
   loading.textContent = "正在读取学习数据...";
   loading.classList.remove("hidden");
   content.classList.add("hidden");
   let data = null;
+  let local = false;
   try {
-    data = await api("/api/study-log?days=84&events=20");
+    data = await api("/api/study-log?days=84&events=200");
   } catch (err) {
-    data = buildLocalStudyLog(84, 20);
+    data = buildLocalStudyLog(84, 200);
+    local = true;
   }
-  renderStudySourceNote(Boolean(data.local));
-  renderStudySummary(data.summary);
-  renderStudyHeatmap(data.days);
+  renderStatsLine(data.summary, local);
   renderStudyCalendar(data.days);
-  renderStudyToday(data.summary, data.days);
   renderStudyRecent(data.recent_events);
-  renderStudyLog(data.days);
   content.classList.remove("hidden");
-  loaded = true;
-  if (loaded) loading.classList.add("hidden");
+  loading.classList.add("hidden");
 }
 
 function switchView(name) {
