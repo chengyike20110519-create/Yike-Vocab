@@ -1146,10 +1146,9 @@ function renderStatsLine(summary, local) {
   const el = $("#statsLine");
   if (!el) return;
   const parts = [
-    `连续打卡 ${summary.current_streak} 天`,
-    `累计打卡 ${summary.active_days} 天`,
-    `学习记录 ${summary.total_events} 条`,
-    `新学 ${summary.learned_words} 个单词`,
+    `连续 ${summary.current_streak} 天`,
+    `累计 ${summary.active_days} 天`,
+    `共背了 ${summary.learned_words} 个单词`,
   ];
   el.textContent = parts.join(" · ") + (local ? "（本机记录）" : "");
 }
@@ -1243,9 +1242,9 @@ function renderStudyCalendar(days) {
     if (day) {
       const meta = document.createElement("span");
       meta.className = "cal-day-meta";
-      meta.textContent = `新 ${day.new_words || 0} · 记 ${total}`;
+      meta.textContent = `${day.word_count} 个`;
       cell.appendChild(meta);
-      cell.title = `${key}：新学 ${day.new_words || 0} 个单词，共标记 ${total} 次`;
+      cell.title = `${key}：背了 ${day.word_count} 个单词`;
     } else {
       cell.title = `${key}：未打卡`;
     }
