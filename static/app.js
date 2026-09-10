@@ -981,6 +981,231 @@ function selectedSummaryText() {
   return `词书：${book.name}\n单元：${names.slice(0, 8).join("、")}${names.length > 8 ? ` 等 ${names.length} 个` : ""}`;
 }
 
+function localDateKey(value = new Date()) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(value) {
+  const [year, month, day] = String(value || "").split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function dayLogLabel(value) {
+  const today = new Date();
+  const todayKey = localDateKey(today);
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (value === todayKey) return "今天";
+  if (value === localDateKey(yesterday)) return "昨天";
+  const target = parseDateKey(value);
+  const weekday = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][target.getDay()];
+  return `${target.getMonth() + 1}月${target.getDate()}日 ${weekday}`;
+}
+
+function statusLabel(status) {
+  return { know: "认识", fuzzy: "模糊", unknown: "不认识" }[status] || "未标记";
+}
+
+function renderStudySummary(summary) {
+  const box = $("#statsSummary");
+  const cards = [
+    {
+      value: summary.current_streak,
+      label: "连续打卡",
+      note: `最长 ${summary.longest_streak} 天`,
+    },
+    {
+      value: summary.active_days,
+      label: "累计打卡",
+      note: `覆盖 ${summary.learned_words} 个单词`,
+    },
+    {
+      value: summary.total_events,
+      label: "学习记录",
+      note: `来自 ${summary.touched_books} 本词书`,
+    },
+    {
+      value: summary.today_events,
+      label: "今日记录",
+      note: summary.today_checked_in ? "今日已打卡" : "今天还没开始",
+    },
+  ];
+  box.innerHTML = cards.map((card) => `
+    <article class="stats-summary-card">
+      <strong>${card.value}</strong>
+      <span>${card.label}</span>
+      <small>${card.note}</small>
+    </article>
+  `).join("");
+}
+
+function heatLevel(total) {
+  if (!total) return 0;
+  if (total <= 5) return 1;
+  if (total <= 15) return 2;
+  if (total <= 30) return 3;
+  return 4;
+}
+
+function renderStudyHeatmap(days) {
+  const grid = $("#statsHeatmap");
+  const byDate = new Map(days.map((day) => [day.date, day]));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const mondayIndex = (today.getDay() + 6) % 7;
+  const start = new Date(today);
+  start.setDate(today.getDate() - 11 * 7 - mondayIndex);
+  $("#statsRangeText").textContent = `${localDateKey(start)} 至 ${localDateKey(today)}`;
+
+  grid.innerHTML = "";
+  const cursor = new Date(start);
+  while (cursor <= today) {
+    const key = localDateKey(cursor);
+    const day = byDate.get(key);
+    const total = day?.total || 0;
+    const cell = document.createElement("div");
+    cell.className = `heatmap-cell level-${heatLevel(total)}`;
+    if (key === localDateKey(today)) cell.classList.add("today");
+    cell.title = total
+      ? `${key}：学习 ${total} 次，覆盖 ${day.word_count} 个单词`
+      : `${key}：未打卡`;
+    cell.setAttribute("aria-label", cell.title);
+    grid.appendChild(cell);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+}
+
+function renderStudyToday(summary, days) {
+  const box = $("#statsToday");
+  const todayKey = localDateKey();
+  const day = days.find((item) => item.date === todayKey);
+  $("#statsTodayNote").textContent = summary.today_checked_in ? "已完成" : "待完成";
+  if (!day) {
+    box.innerHTML = `
+      <div class="stats-empty">
+        <strong>今天还没有打卡</strong>
+        <span>去词书里标记几个单词，日志会自动记录。</span>
+      </div>
+    `;
+    return;
+  }
+  box.innerHTML = `
+    <div class="stats-today-total">
+      <strong>${day.total}</strong>
+      <span>次学习记录</span>
+    </div>
+    <div class="stats-status-pills">
+      <span class="know">认识 ${day.know}</span>
+      <span class="fuzzy">模糊 ${day.fuzzy}</span>
+      <span class="unknown">不认识 ${day.unknown}</span>
+    </div>
+    <p>今天覆盖 ${day.word_count} 个不同单词。</p>
+  `;
+}
+
+function renderStudyRecent(events) {
+  const box = $("#statsRecent");
+  box.innerHTML = "";
+  if (!events.length) {
+    box.innerHTML = '<div class="stats-empty compact"><span>还没有学习记录。</span></div>';
+    return;
+  }
+  events.forEach((event) => {
+    const row = document.createElement("div");
+    row.className = "stats-recent-row";
+
+    const main = document.createElement("div");
+    main.className = "stats-recent-main";
+    const word = document.createElement("strong");
+    word.textContent = event.word;
+    const meaning = document.createElement("span");
+    meaning.textContent = event.meaning || "暂无释义";
+    main.append(word, meaning);
+
+    const meta = document.createElement("div");
+    meta.className = "stats-recent-meta";
+    const status = document.createElement("span");
+    status.className = `stats-state ${event.status}`;
+    status.textContent = statusLabel(event.status);
+    const context = document.createElement("span");
+    context.textContent = `${event.book_name} · ${event.unit_name}`;
+    const time = document.createElement("time");
+    time.textContent = String(event.created_at || "").slice(11, 16);
+    meta.append(status, context, time);
+
+    row.append(main, meta);
+    box.appendChild(row);
+  });
+}
+
+function renderStudyLog(days) {
+  const box = $("#statsLogList");
+  box.innerHTML = "";
+  $("#statsLogCount").textContent = days.length ? `最近 ${days.length} 个有记录的日期` : "";
+  if (!days.length) {
+    box.innerHTML = `
+      <div class="stats-empty">
+        <strong>还没有打卡日志</strong>
+        <span>完成一次单词标记后，这里会按日期生成记录。</span>
+      </div>
+    `;
+    return;
+  }
+  days.forEach((day) => {
+    const row = document.createElement("article");
+    row.className = "stats-log-entry";
+
+    const heading = document.createElement("div");
+    heading.className = "stats-log-heading";
+    const date = document.createElement("strong");
+    date.textContent = dayLogLabel(day.date);
+    const total = document.createElement("span");
+    total.textContent = `${day.total} 次`;
+    heading.append(date, total);
+
+    const details = document.createElement("div");
+    details.className = "stats-log-details";
+    const words = document.createElement("span");
+    words.textContent = `${day.word_count} 个单词`;
+    const pills = document.createElement("span");
+    pills.className = "stats-status-pills";
+    pills.innerHTML = `
+      <span class="know">认识 ${day.know}</span>
+      <span class="fuzzy">模糊 ${day.fuzzy}</span>
+      <span class="unknown">不认识 ${day.unknown}</span>
+    `;
+    details.append(words, pills);
+    row.append(heading, details);
+    box.appendChild(row);
+  });
+}
+
+async function refreshStudyLog() {
+  const loading = $("#statsLoading");
+  const content = $("#statsContent");
+  let loaded = false;
+  loading.textContent = "正在读取学习数据...";
+  loading.classList.remove("hidden");
+  content.classList.add("hidden");
+  try {
+    const data = await api("/api/study-log?days=84&events=20");
+    renderStudySummary(data.summary);
+    renderStudyHeatmap(data.days);
+    renderStudyToday(data.summary, data.days);
+    renderStudyRecent(data.recent_events);
+    renderStudyLog(data.days);
+    content.classList.remove("hidden");
+    loaded = true;
+  } catch (err) {
+    loading.textContent = err.message;
+  } finally {
+    if (loaded) loading.classList.add("hidden");
+  }
+}
+
 function switchView(name) {
   $$(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
   $$(".view").forEach((v) => v.classList.toggle("active", v.dataset.viewPanel === name));
@@ -992,6 +1217,7 @@ function switchView(name) {
     }
   }
   if (name === "export") renderExport();
+  if (name === "stats") refreshStudyLog();
   if (name === "learn") {
     if (state.sessionCards.length > 0 && $("#learnFinished").classList.contains("hidden")) {
       $("#learnRunning").classList.remove("hidden");
@@ -1144,6 +1370,7 @@ function bindEvents() {
   window.addEventListener("beforeunload", saveLearnResume);
   window.addEventListener("pagehide", saveLearnResume);
   $$(".nav-btn").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
+  $("#refreshStatsBtn").addEventListener("click", refreshStudyLog);
   document.addEventListener("click", (e) => {
     const importTarget = e.target.closest("[data-open-import]");
     if (importTarget) {

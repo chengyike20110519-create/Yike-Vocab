@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>亦可速记</title>
-  <link rel="stylesheet" href="styles.css?v=20260909-7">
+  <link rel="stylesheet" href="styles.css?v=20260910-1">
 </head>
 <body>
   <header class="topbar">
@@ -17,6 +17,7 @@
     </div>
     <nav class="main-nav" aria-label="主要页面">
       <button class="nav-btn active" data-view="books" type="button">词书</button>
+      <button class="nav-btn" data-view="stats" type="button">学习数据</button>
       <button class="nav-btn" data-view="export" type="button">导出 PDF</button>
     </nav>
     <button class="primary-btn" id="importBtn" type="button">导入词书</button>
@@ -137,6 +138,83 @@
       </div>
 
       <div id="learnFinished" class="finish-panel hidden"></div>
+    </section>
+
+    <section class="view" id="view-stats" data-view-panel="stats">
+      <div class="section-head">
+        <div>
+          <h1>学习数据</h1>
+          <p class="subtle">每次标记单词都会自动形成一条打卡日志。</p>
+        </div>
+        <button class="ghost-btn" id="refreshStatsBtn" type="button">刷新数据</button>
+      </div>
+
+      <div id="statsLoading" class="stats-loading">正在读取学习数据...</div>
+      <div id="statsContent" class="hidden">
+        <div id="statsSummary" class="stats-summary-grid"></div>
+
+        <div class="stats-layout">
+          <section class="stats-card">
+            <div class="stats-card-head">
+              <div>
+                <strong>近 12 周打卡</strong>
+                <span id="statsRangeText"></span>
+              </div>
+              <div class="heatmap-legend" aria-label="打卡程度">
+                <span>少</span>
+                <i class="level-0"></i>
+                <i class="level-1"></i>
+                <i class="level-2"></i>
+                <i class="level-3"></i>
+                <i class="level-4"></i>
+                <span>多</span>
+              </div>
+            </div>
+            <div class="heatmap-wrap">
+              <div class="heatmap-weekdays" aria-hidden="true">
+                <span>一</span>
+                <span></span>
+                <span>三</span>
+                <span></span>
+                <span>五</span>
+                <span></span>
+                <span>日</span>
+              </div>
+              <div id="statsHeatmap" class="heatmap-grid"></div>
+            </div>
+          </section>
+
+          <section class="stats-card">
+            <div class="stats-card-head">
+              <div>
+                <strong>今日打卡</strong>
+                <span id="statsTodayNote"></span>
+              </div>
+            </div>
+            <div id="statsToday" class="stats-today-panel"></div>
+
+            <div class="stats-section-divider"></div>
+            <div class="stats-card-head">
+              <div>
+                <strong>最近记录</strong>
+                <span>最近的单词标记</span>
+              </div>
+            </div>
+            <div id="statsRecent" class="stats-recent-list"></div>
+          </section>
+        </div>
+
+        <section class="stats-card stats-log-card">
+          <div class="stats-card-head">
+            <div>
+              <strong>打卡日志</strong>
+              <span>按日期汇总认识、模糊、不认识次数</span>
+            </div>
+            <span id="statsLogCount" class="subtle"></span>
+          </div>
+          <div id="statsLogList" class="stats-log-list"></div>
+        </section>
+      </div>
     </section>
 
     <section class="view" id="view-export" data-view-panel="export">
@@ -327,6 +405,6 @@
 
   <div id="toastRegion" class="toast-region" aria-live="polite"></div>
 
-  <script src="app.js?v=20260909-7"></script>
+  <script src="app.js?v=20260910-1"></script>
 </body>
 </html>

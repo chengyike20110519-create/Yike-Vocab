@@ -15,7 +15,7 @@ import sys
 import threading
 import urllib.parse
 import webbrowser
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -349,6 +349,140 @@ def word_history(word_id: int) -> dict:
     }
 
 
+def study_log(days: int = 84, recent_limit: int = 20) -> dict:
+    days = max(7, min(int(days), 365))
+    recent_limit = max(1, min(int(recent_limit), 100))
+    today = date.today()
+    window_start = today - timedelta(days=days - 1)
+
+    with connect() as conn:
+        totals = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS total_events,
+                COUNT(DISTINCT e.word_id) AS learned_words,
+                COUNT(DISTINCT substr(e.created_at, 1, 10)) AS active_days,
+                COUNT(DISTINCT b.id) AS touched_books
+            FROM word_events e
+            JOIN words w ON w.id = e.word_id
+            JOIN units u ON u.id = w.unit_id
+            JOIN books b ON b.id = u.book_id
+            """
+        ).fetchone()
+        active_rows = conn.execute(
+            """
+            SELECT DISTINCT substr(created_at, 1, 10) AS day
+            FROM word_events
+            ORDER BY day
+            """
+        ).fetchall()
+        daily_rows = conn.execute(
+            """
+            SELECT
+                substr(e.created_at, 1, 10) AS day,
+                COUNT(*) AS total,
+                COUNT(DISTINCT e.word_id) AS word_count,
+                SUM(CASE WHEN e.status = 'know' THEN 1 ELSE 0 END) AS know_count,
+                SUM(CASE WHEN e.status = 'fuzzy' THEN 1 ELSE 0 END) AS fuzzy_count,
+                SUM(CASE WHEN e.status = 'unknown' THEN 1 ELSE 0 END) AS unknown_count
+            FROM word_events e
+            WHERE substr(e.created_at, 1, 10) >= ?
+            GROUP BY day
+            ORDER BY day DESC
+            """,
+            (window_start.isoformat(),),
+        ).fetchall()
+        recent_rows = conn.execute(
+            """
+            SELECT
+                e.created_at,
+                e.status,
+                w.word,
+                w.meaning,
+                u.name AS unit_name,
+                b.name AS book_name
+            FROM word_events e
+            JOIN words w ON w.id = e.word_id
+            JOIN units u ON u.id = w.unit_id
+            JOIN books b ON b.id = u.book_id
+            ORDER BY e.created_at DESC, e.id DESC
+            LIMIT ?
+            """,
+            (recent_limit,),
+        ).fetchall()
+
+    active_dates = {row["day"] for row in active_rows if row["day"]}
+    dated_streaks = sorted(
+        date.fromisoformat(day)
+        for day in active_dates
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day)
+    )
+    longest_streak = 0
+    running_streak = 0
+    previous_day: date | None = None
+    for day in dated_streaks:
+        running_streak = running_streak + 1 if previous_day and day == previous_day + timedelta(days=1) else 1
+        longest_streak = max(longest_streak, running_streak)
+        previous_day = day
+
+    def streak_from(anchor: date) -> int:
+        streak = 0
+        cursor = anchor
+        while cursor.isoformat() in active_dates:
+            streak += 1
+            cursor -= timedelta(days=1)
+        return streak
+
+    yesterday = today - timedelta(days=1)
+    if today.isoformat() in active_dates:
+        current_streak = streak_from(today)
+    elif yesterday.isoformat() in active_dates:
+        current_streak = streak_from(yesterday)
+    else:
+        current_streak = 0
+
+    recent_days = [
+        {
+            "date": row["day"],
+            "total": row["total"],
+            "word_count": row["word_count"],
+            "know": row["know_count"],
+            "fuzzy": row["fuzzy_count"],
+            "unknown": row["unknown_count"],
+        }
+        for row in daily_rows
+    ]
+    today_log = next((item for item in recent_days if item["date"] == today.isoformat()), None)
+
+    return {
+        "generated_at": utcnow_ms(),
+        "window_days": days,
+        "summary": {
+            "current_streak": current_streak,
+            "longest_streak": longest_streak,
+            "active_days": totals["active_days"] or 0,
+            "total_events": totals["total_events"] or 0,
+            "learned_words": totals["learned_words"] or 0,
+            "touched_books": totals["touched_books"] or 0,
+            "today_events": today_log["total"] if today_log else 0,
+            "today_words": today_log["word_count"] if today_log else 0,
+            "today_checked_in": bool(today_log),
+        },
+        "days": recent_days,
+        "recent_events": [
+            {
+                "created_at": row["created_at"],
+                "status": row["status"],
+                "word": row["word"],
+                "meaning": row["meaning"] or "",
+                "unit_name": row["unit_name"],
+                "book_name": row["book_name"],
+            }
+            for row in recent_rows
+        ],
+    }
+
+
 def reset_progress(word_ids: list[int]) -> None:
     if not word_ids:
         return
@@ -558,6 +692,16 @@ class VocabularyHandler(BaseHTTPRequestHandler):
                 self._send_json(404, {"error": str(exc)})
                 return
             self._send_json(200, history)
+            return
+        if path == "/api/study-log":
+            params = urllib.parse.parse_qs(query)
+            try:
+                days = int((params.get("days") or ["84"])[0])
+                recent_limit = int((params.get("events") or ["20"])[0])
+            except ValueError:
+                self._send_json(400, {"error": "统计参数不正确"})
+                return
+            self._send_json(200, study_log(days, recent_limit))
             return
         self._send_json(404, {"error": "接口不存在"})
 
