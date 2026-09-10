@@ -1161,44 +1161,6 @@ function heatLevel(total) {
   return 4;
 }
 
-function renderStudyRecent(events) {
-  const box = $("#statsRecent");
-  box.innerHTML = "";
-  const counter = $("#statsRecentCount");
-  if (counter) counter.textContent = events.length ? `最近 ${events.length} 条` : "";
-  if (!events.length) {
-    box.innerHTML = '<div class="stats-empty compact"><span>还没有学习记录，去背几个单词吧。</span></div>';
-    return;
-  }
-  events.forEach((event) => {
-    const row = document.createElement("div");
-    row.className = "stats-recent-row";
-
-    const main = document.createElement("div");
-    main.className = "stats-recent-main";
-    const word = document.createElement("strong");
-    word.textContent = event.word;
-    const meaning = document.createElement("span");
-    meaning.textContent = event.meaning || "暂无释义";
-    main.append(word, meaning);
-
-    const meta = document.createElement("div");
-    meta.className = "stats-recent-meta";
-    const status = document.createElement("span");
-    status.className = `stats-state ${event.status}`;
-    status.textContent = statusLabel(event.status);
-    const context = document.createElement("span");
-    context.textContent = `${event.book_name} · ${event.unit_name}`;
-    const time = document.createElement("time");
-    time.textContent = dayLogLabel(String(event.created_at || "").slice(0, 10))
-      + " " + String(event.created_at || "").slice(11, 16);
-    meta.append(status, context, time);
-
-    row.append(main, meta);
-    box.appendChild(row);
-  });
-}
-
 function renderStudyCalendar(days) {
   const grid = $("#statsCalendar");
   if (!grid) return;
@@ -1270,7 +1232,6 @@ async function refreshStudyLog() {
   }
   renderStatsLine(data.summary, local);
   renderStudyCalendar(data.days);
-  renderStudyRecent(data.recent_events);
   content.classList.remove("hidden");
   loading.classList.add("hidden");
 }
