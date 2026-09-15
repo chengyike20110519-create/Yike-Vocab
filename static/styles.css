@@ -289,12 +289,225 @@ button:disabled {
   border-color: #a9b4c4;
 }
 
+.checkin-strip {
+  display: grid;
+  grid-template-columns: minmax(170px, 240px) 1fr;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.checkin-card {
+  align-self: start;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.checkin-card span {
+  font-size: 13px;
+}
+
+.checkin-card .today-scope {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.learn-timer {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  min-width: 84px;
+  margin-left: auto;
+  margin-right: 12px;
+}
+
+.timer-label,
+.learn-timer strong {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.learn-timer strong {
+  color: #111827;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.log-summary {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.study-log-list {
+  display: grid;
+  gap: 8px;
+}
+
+.study-log-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.6fr) repeat(3, minmax(88px, auto)) minmax(130px, auto);
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.study-log-row:hover {
+  border-color: #8aa4c4;
+  background: #f8fbff;
+}
+
+.study-log-main,
+.study-log-metric,
+.study-log-score {
+  display: grid;
+  gap: 3px;
+}
+
+.study-log-main span,
+.study-log-metric small,
+.study-log-score small,
+.study-log-row time {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.study-log-metric strong,
+.study-log-score strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.study-log-score strong {
+  color: #0f766e;
+}
+
+.log-detail-modal {
+  width: min(720px, calc(100% - 30px));
+}
+
+.log-detail-head {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.log-detail-head span,
+.log-word-list span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.log-score-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 14px 0 4px;
+  color: #344054;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.log-score-breakdown small {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.log-word-list {
+  display: grid;
+  gap: 6px;
+  max-height: 420px;
+  overflow-y: auto;
+  margin-top: 14px;
+}
+
+.log-word-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.checkin-calendar {
+  align-self: start;
+  padding: 12px 14px;
+  margin-bottom: 0;
+}
+
+.log-calendar {
+  margin-bottom: 18px;
+}
+
+.checkin-calendar .stats-card-head {
+  margin-bottom: 10px;
+}
+
+.calendar-metric-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.calendar-metric-select select {
+  min-height: 32px;
+  padding: 0 26px 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  font-size: 13px;
+}
+
+.calendar-metric-hint {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.checkin-calendar .cal-cell {
+  min-height: 34px;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.checkin-calendar .cal-day-num {
+  font-size: 11px;
+}
+
+.checkin-calendar .cal-day-meta {
+  font-size: 10px;
+}
+
 .resume-learn-panel {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(120px, 1.5fr) auto;
+  gap: 10px;
+  margin: -8px 0 22px;
+}
+
+.resume-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, 1.5fr) auto auto;
   align-items: center;
   gap: 16px;
-  margin: -8px 0 22px;
   padding: 14px 16px;
   border: 1px solid #bfdbfe;
   border-radius: 8px;
@@ -328,7 +541,8 @@ button:disabled {
   background: var(--accent);
 }
 
-.resume-learn-panel .primary-btn {
+.resume-card .primary-btn,
+.resume-card .ghost-btn {
   white-space: nowrap;
 }
 
@@ -769,6 +983,58 @@ button:disabled {
   font-weight: 650;
 }
 
+.type-panel {
+  width: 100%;
+  max-width: 460px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.type-label {
+  display: block;
+  margin-bottom: 12px;
+  font-weight: 650;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.type-row {
+  display: flex;
+  gap: 10px;
+}
+
+.type-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.type-input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.type-feedback {
+  min-height: 20px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.type-feedback.correct {
+  color: var(--know);
+}
+
+.type-feedback.wrong {
+  color: var(--unknown);
+}
+
 .quiz-result.correct {
   color: var(--know);
 }
@@ -1035,6 +1301,15 @@ legend {
 
 .record-filter {
   justify-self: start;
+}
+
+.record-scope {
+  justify-self: start;
+  margin-top: -8px;
+}
+
+.record-scope .seg-btn {
+  min-width: 96px;
 }
 
 .record-filter .seg-btn {
@@ -1795,6 +2070,10 @@ legend {
 }
 
 @media (max-width: 900px) {
+  .checkin-strip {
+    grid-template-columns: 1fr;
+  }
+
   .stats-layout {
     grid-template-columns: 1fr;
   }
@@ -1864,17 +2143,27 @@ legend {
   }
 
   .resume-learn-panel {
-    grid-template-columns: 1fr auto;
+    gap: 10px;
   }
 
-  .resume-learn-progress {
+  .resume-card {
+    grid-template-columns: 1fr auto;
+    gap: 10px 12px;
+  }
+
+  .resume-card .resume-learn-progress {
     grid-column: 1 / -1;
     grid-row: 2;
   }
 
-  .resume-learn-panel .primary-btn {
+  .resume-card .resume-continue-btn {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .resume-card .resume-delete-btn {
     grid-column: 2;
-    grid-row: 1;
+    grid-row: 3;
   }
 
   .export-layout {
@@ -1954,5 +2243,36 @@ legend {
 
   .record-toolbar input {
     max-width: none;
+  }
+
+  .study-log-row {
+    grid-template-columns: 1fr repeat(3, auto);
+  }
+
+  .study-log-row time {
+    grid-column: 1 / -1;
+  }
+
+  .checkin-calendar .stats-card-head {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .calendar-metric-select {
+    margin-left: 0;
+  }
+
+  .learn-meta {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .learn-timer {
+    margin-left: auto;
+  }
+
+  .learn-meta #exitLearnBtn {
+    order: 3;
+    width: 100%;
   }
 }

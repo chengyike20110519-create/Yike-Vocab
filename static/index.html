@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>亦可速记</title>
-  <link rel="stylesheet" href="styles.css?v=20260910-1">
+  <link rel="stylesheet" href="styles.css?v=20260915-2">
 </head>
 <body>
   <header class="topbar">
@@ -16,8 +16,8 @@
       </div>
     </div>
     <nav class="main-nav" aria-label="主要页面">
-      <button class="nav-btn active" data-view="books" type="button">词书</button>
-      <button class="nav-btn" data-view="stats" type="button">学习数据</button>
+      <button class="nav-btn active" data-view="books" type="button">开始学习</button>
+      <button class="nav-btn" data-view="log" type="button">学习日志</button>
       <button class="nav-btn" data-view="export" type="button">导出 PDF</button>
     </nav>
     <button class="primary-btn" id="importBtn" type="button">导入词书</button>
@@ -27,7 +27,7 @@
     <section class="view active" id="view-books" data-view-panel="books">
       <div class="section-head">
         <div>
-          <h1 id="bookTitle">我的词书</h1>
+          <h1 id="bookTitle">开始学习</h1>
           <p id="bookSubtitle" class="subtle">选择单元后开始背诵</p>
         </div>
         <div class="head-actions">
@@ -49,6 +49,13 @@
       </div>
 
       <div id="bookBody" class="hidden">
+        <div class="checkin-strip">
+          <button class="stat-item stat-btn checkin-card" id="checkinCard" type="button" data-checkin-info aria-label="查看今天的学习统计">
+            <strong id="checkinHeadline">连续打卡 0 天</strong>
+            <span id="statsLine">今天背了 0 个单词</span>
+            <span id="todayScope" class="today-scope">词书和单元：暂无</span>
+          </button>
+        </div>
         <div class="stat-strip" id="statStrip"></div>
         <div id="resumeLearnPanel" class="resume-learn-panel hidden"></div>
 
@@ -73,6 +80,7 @@
           <div class="segmented" id="learnModeSwitch" role="group" aria-label="学习模式">
             <button class="seg-btn active" data-learn-mode="normal" type="button">普通卡片</button>
             <button class="seg-btn" data-learn-mode="quiz" type="button">三选一速记</button>
+            <button class="seg-btn" data-learn-mode="type" type="button">打字默写</button>
           </div>
           <button class="primary-btn large-btn" id="startLearnBtn" type="button" disabled>开始背单词</button>
         </div>
@@ -86,6 +94,10 @@
           <div>
             <strong id="learnUnitName">单元</strong>
             <span id="learnCounter" class="subtle">0 / 0</span>
+          </div>
+          <div class="learn-timer" aria-live="polite">
+            <span class="timer-label">本次学习</span>
+            <strong id="learnTimer">00:00</strong>
           </div>
           <button class="ghost-btn" id="exitLearnBtn" type="button">退出</button>
         </div>
@@ -109,6 +121,14 @@
             <span class="card-meaning" id="cardMeaning"></span>
             <span class="card-english" id="cardEnglish"></span>
             <span class="card-memory" id="cardMemory"></span>
+            <span class="type-panel hidden" id="typePanel">
+              <span class="type-label">把上面的英文单词打一遍</span>
+              <span class="type-row">
+                <input id="typeInput" class="type-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="输入这个单词后按回车">
+                <button class="primary-btn" id="typeSubmitBtn" type="button">确认</button>
+              </span>
+              <span class="type-feedback" id="typeFeedback"></span>
+            </span>
           </span>
         </div>
 
@@ -140,39 +160,45 @@
       <div id="learnFinished" class="finish-panel hidden"></div>
     </section>
 
-    <section class="view" id="view-stats" data-view-panel="stats">
+    <section class="view" id="view-log" data-view-panel="log">
       <div class="section-head">
         <div>
-          <h1>学习数据</h1>
-          <p class="subtle">每次标记单词都会自动形成一条打卡日志。</p>
+          <h1>学习日志</h1>
+          <p class="subtle">每次完成学习后自动记录，可点击查看本次明细。</p>
         </div>
-        <button class="ghost-btn" id="refreshStatsBtn" type="button">刷新数据</button>
+        <div class="log-summary" id="logSummary"></div>
       </div>
-
-      <div id="statsLoading" class="stats-loading">正在读取学习数据...</div>
-      <div id="statsContent" class="hidden">
-        <p id="statsLine" class="stats-line"></p>
-
-        <section class="stats-card stats-calendar-card">
-          <div class="stats-card-head">
-            <div>
-              <strong>每月日历</strong>
-              <span id="statsCalendarTitle"></span>
-            </div>
-            <div class="heatmap-legend" aria-label="学习量">
-              <span>少</span>
-              <i class="level-0"></i>
-              <i class="level-1"></i>
-              <i class="level-2"></i>
-              <i class="level-3"></i>
-              <i class="level-4"></i>
-              <span>多</span>
-            </div>
+      <section class="stats-card checkin-calendar log-calendar">
+        <div class="stats-card-head">
+          <div>
+            <strong>本月日历</strong>
+            <span id="statsCalendarTitle"></span>
           </div>
-          <div id="statsCalendar" class="stats-calendar"></div>
-        </section>
-
-
+          <label class="calendar-metric-select">
+            <span>查看指标</span>
+            <select id="calendarMetric" aria-label="选择日历指标">
+              <option value="word_count">单词数量</option>
+              <option value="duration">学习时长</option>
+              <option value="score">综合分</option>
+            </select>
+          </label>
+          <div class="heatmap-legend" aria-label="当前指标深浅">
+            <span>浅</span>
+            <i class="level-0"></i>
+            <i class="level-1"></i>
+            <i class="level-2"></i>
+            <i class="level-3"></i>
+            <i class="level-4"></i>
+            <span>深</span>
+          </div>
+        </div>
+        <div id="statsCalendar" class="stats-calendar"></div>
+        <div id="calendarMetricHint" class="calendar-metric-hint"></div>
+      </section>
+      <div id="studyLogList" class="study-log-list"></div>
+      <div id="studyLogEmpty" class="empty-state hidden">
+        <div class="empty-title">还没有学习日志</div>
+        <p>完成一次背单词后，这里会显示本次学习的单词数、时长和综合表现。</p>
       </div>
     </section>
 
@@ -324,6 +350,10 @@
         <button class="seg-btn" data-record-tab="fuzzy" type="button">模糊</button>
         <button class="seg-btn" data-record-tab="unknown" type="button">不认识</button>
       </div>
+      <div class="segmented record-scope" id="recordScope" role="group" aria-label="记录范围">
+        <button class="seg-btn active" data-record-scope="current" type="button">当前状态</button>
+        <button class="seg-btn" data-record-scope="ever" type="button">历史标记过</button>
+      </div>
       <div class="record-toolbar">
         <input id="recordSearch" type="search" placeholder="搜索这个分组">
         <button class="primary-btn" id="recordPracticeBtn" type="button" disabled>开始背这一组</button>
@@ -362,8 +392,18 @@
     </form>
   </dialog>
 
+  <dialog id="studyLogDialog" class="modal log-detail-modal">
+    <form method="dialog" class="modal-shell">
+      <div class="modal-head">
+        <h2>本次学习详情</h2>
+        <button class="icon-btn" value="cancel" type="submit" aria-label="关闭">×</button>
+      </div>
+      <div id="studyLogDetail"></div>
+    </form>
+  </dialog>
+
   <div id="toastRegion" class="toast-region" aria-live="polite"></div>
 
-  <script src="app.js?v=20260910-1"></script>
+  <script src="app.js?v=20260915-2"></script>
 </body>
 </html>

@@ -194,6 +194,7 @@ def fetch_cards(
     unit_ids: list[int] | None = None,
     shuffle: bool = False,
     status: str | None = None,
+    ever: bool = False,
 ) -> list[dict]:
     if status and status not in ("know", "fuzzy", "unknown"):
         raise ValueError("状态只能是 know / fuzzy / unknown")
@@ -212,14 +213,21 @@ def fetch_cards(
             JOIN units u ON u.id = w.unit_id
             WHERE u.book_id = ?
         """
-        join_clause = "JOIN reviews r ON r.word_id = w.id" if status else "LEFT JOIN reviews r ON r.word_id = w.id"
+        join_clause = (
+            "JOIN reviews r ON r.word_id = w.id"
+            if status and not ever
+            else "LEFT JOIN reviews r ON r.word_id = w.id"
+        )
         sql = sql.replace("WHERE u.book_id = ?", f"{join_clause}\n            WHERE u.book_id = ?")
         params: list[object] = [book_id]
         if unit_ids:
             placeholders = ",".join("?" for _ in unit_ids)
             sql += f" AND u.id IN ({placeholders})"
             params.extend(unit_ids)
-        if status:
+        if status and ever:
+            sql += " AND EXISTS (SELECT 1 FROM word_events e WHERE e.word_id = w.id AND e.status = ?)"
+            params.append(status)
+        elif status:
             sql += " AND r.status = ?"
             params.append(status)
         sql += " ORDER BY " + ("RANDOM()" if shuffle else "u.no, w.id")
@@ -421,6 +429,22 @@ def study_log(days: int = 84, recent_limit: int = 20) -> dict:
             """,
             (recent_limit,),
         ).fetchall()
+        today_scope_rows = conn.execute(
+            """
+            SELECT
+                b.name AS book_name,
+                u.name AS unit_name,
+                COUNT(DISTINCT e.word_id) AS word_count
+            FROM word_events e
+            JOIN words w ON w.id = e.word_id
+            JOIN units u ON u.id = w.unit_id
+            JOIN books b ON b.id = u.book_id
+            WHERE substr(e.created_at, 1, 10) = ?
+            GROUP BY b.id, u.id
+            ORDER BY b.name, u.no, u.name
+            """,
+            (today.isoformat(),),
+        ).fetchall()
 
     active_dates = {row["day"] for row in active_rows if row["day"]}
     dated_streaks = sorted(
@@ -466,6 +490,10 @@ def study_log(days: int = 84, recent_limit: int = 20) -> dict:
         for row in daily_rows
     ]
     today_log = next((item for item in recent_days if item["date"] == today.isoformat()), None)
+    today_books: dict[str, dict] = {}
+    for row in today_scope_rows:
+        book = today_books.setdefault(row["book_name"], {"book_name": row["book_name"], "units": []})
+        book["units"].append({"unit_name": row["unit_name"], "word_count": row["word_count"]})
 
     return {
         "generated_at": utcnow_ms(),
@@ -482,6 +510,7 @@ def study_log(days: int = 84, recent_limit: int = 20) -> dict:
             "today_new_words": today_log["new_words"] if today_log else 0,
             "today_checked_in": bool(today_log),
         },
+        "today_books": list(today_books.values()),
         "days": recent_days,
         "recent_events": [
             {
@@ -596,6 +625,7 @@ def import_records(
         "unit_count": len(unit_cache),
         "word_count": word_count,
         "duplicate_count": duplicate_count,
+        "added": word_count > 0,
     }
 
 
@@ -684,7 +714,8 @@ class VocabularyHandler(BaseHTTPRequestHandler):
             units = [int(x) for x in (params.get("units") or [""])[0].split(",") if x.isdigit()]
             shuffle = (params.get("shuffle") or ["0"])[0] in ("1", "true", "yes")
             status = (params.get("status") or [""])[0] or None
-            cards = fetch_cards(book_id, units or None, shuffle, status)
+            ever = (params.get("ever") or ["0"])[0] in ("1", "true", "yes")
+            cards = fetch_cards(book_id, units or None, shuffle, status, ever)
             unit_names = sorted({card["unit_name"] for card in cards})
             self._send_json(200, {
                 "book_id": book_id,
@@ -855,7 +886,7 @@ def main() -> None:
         raise SystemExit("没有可用的本地端口")
     server = ThreadingHTTPServer(("127.0.0.1", port), VocabularyHandler)
     url = f"http://127.0.0.1:{port}"
-    print(f"\n亦可速记已启动：{url}\n")
+    print(f"\n亦可速记已启动：{url}\n请使用自动打开的这个地址，不要直接双击 static/index.html。\n")
     if open_browser:
         def _open():
             try:
