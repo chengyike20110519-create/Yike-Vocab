@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">亦可速记 logo</title>
+  <desc id="desc">A blue memory card with a white book mark and a green check</desc>
+  <rect width="128" height="128" rx="28" fill="#2563eb"/>
+  <path d="M29 31.5c0-4.7 3.8-8.5 8.5-8.5h45c5.8 0 10.5 4.7 10.5 10.5V96H39.5C33.7 96 29 91.3 29 85.5z" fill="#f8fafc" opacity=".98"/>
+  <path d="M39 34h40.5c3 0 5.5 2.5 5.5 5.5V88H40.5A5.5 5.5 0 0 1 35 82.5v-43c0-3 1.8-5.5 4-5.5Z" fill="#dbeafe"/>
+  <path d="M46 45h27M46 57h27M46 69h17" fill="none" stroke="#2563eb" stroke-width="7" stroke-linecap="round"/>
+  <path d="m73 77 8 8 16-18" fill="none" stroke="#15803d" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
