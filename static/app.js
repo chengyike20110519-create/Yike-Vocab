@@ -1080,7 +1080,6 @@ async function rateCurrent(rating) {
   if (!card) return;
   if (!$("#cardArea").classList.contains("revealed")) {
     revealCard();
-    return;
   }
   if (state.learnMode === "type") {
     const knowBtn = $(".rating-btn.know");
@@ -2066,7 +2065,8 @@ function bindEvents() {
   document.addEventListener("keydown", (e) => {
     if (!$("#view-learn").classList.contains("active")) return;
     if ($("#learnRunning").classList.contains("hidden")) return;
-    if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
+    const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
+    if (typing && !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
     if (e.code === "Space") {
       e.preventDefault();
       revealCard();
@@ -2077,8 +2077,10 @@ function bindEvents() {
     } else if (e.key === "3") {
       rateCurrent("unknown");
     } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
       previousCard();
     } else if (e.key === "ArrowRight") {
+      e.preventDefault();
       skipCard();
     }
   });
