@@ -11,6 +11,30 @@ const MAX_LEARN_RESUMES = 2;
 const STUDY_LOG_KEY = "yike-study-log";
 const SESSION_LOG_KEY = "yike-session-log";
 const DEFAULT_BOOK_KEY = "yike-default-book";
+const THEME_KEY = "yike-theme";
+const WORD_SIDEBAR_KEY = "yike-word-sidebar";
+
+function applyTheme(theme) {
+  const dark = theme === "dark";
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  const button = $("#themeToggleBtn");
+  if (!button) return;
+  button.textContent = dark ? "浅色模式" : "深色模式";
+  button.setAttribute("aria-label", dark ? "切换到浅色模式" : "切换到深色模式");
+}
+
+function initTheme() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem(THEME_KEY);
+  } catch (err) {
+    // Use the system preference when storage is unavailable.
+  }
+  const theme = saved === "dark" || saved === "light"
+    ? saved
+    : (window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  applyTheme(theme);
+}
 
 function demoSessionId() {
   if (!PUBLIC_DEMO) return "";
@@ -766,6 +790,7 @@ function beginSession(cards, startIndex = 0, rated = {}, mode = state.learnMode,
   state.sessionLogSaved = false;
   startSessionTimer();
   updateLearnModeButtons();
+  buildWordSidebar();
   state.lastSession = cards;
   $("#learnFinished").classList.add("hidden");
   $("#learnRunning").classList.remove("hidden");
@@ -936,6 +961,7 @@ function renderCard() {
   $("#learnUnitName").textContent = card.unit_name;
   $("#learnCounter").textContent = `${state.sessionIndex + 1} / ${state.sessionCards.length}`;
   $("#learnProgress").style.width = `${((state.sessionIndex + 1) / state.sessionCards.length) * 100}%`;
+  updateWordSidebar();
   $("#sessionStatus").classList.add("hidden");
   $("#sessionStatus").textContent = "";
   $("#prevCardBtn").disabled = state.sessionIndex === 0;
@@ -1098,6 +1124,7 @@ async function rateCurrent(rating) {
     state.sessionRatings[rating] += 1;
   }
   state.sessionRated[card.id] = rating;
+  updateWordSidebar();
   $("#sessionStatus").textContent = `${card.word} 已标记`;
   $("#sessionStatus").classList.remove("hidden");
   state.bookDirty = true;
@@ -1208,6 +1235,86 @@ function shuffleDifferent(cards, previousCards = []) {
     if (shuffled.map((card) => card.id).join(",") !== previous) return shuffled;
   }
   return shuffled.slice(1).concat(shuffled[0]);
+}
+
+function applyWordSidebar() {
+  const aside = $("#wordSidebar");
+  const wrap = $("#learnRunning");
+  const toggle = $("#wordSidebarToggle");
+  if (!aside || !wrap || !toggle) return;
+  let saved = null;
+  try {
+    saved = localStorage.getItem(WORD_SIDEBAR_KEY);
+  } catch (err) {
+    // Storage unavailable, fall back to the screen width.
+  }
+  const narrow = window.matchMedia?.("(max-width: 900px)").matches;
+  const open = saved ? saved === "open" : !narrow;
+  wrap.classList.toggle("sidebar-open", open);
+  aside.classList.toggle("hidden", !open);
+  toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  toggle.classList.toggle("active", open);
+}
+
+function buildWordSidebar() {
+  const aside = $("#wordSidebar");
+  const list = $("#wordSidebarList");
+  const count = $("#wordSidebarCount");
+  if (!aside || !list) return;
+  list.textContent = "";
+  const cards = state.sessionCards || [];
+  const unitNames = [];
+  cards.forEach((card) => {
+    if (!unitNames.includes(card.unit_name)) unitNames.push(card.unit_name);
+  });
+  cards.forEach((card, index) => {
+    if (unitNames.length > 1 && (index === 0 || cards[index - 1].unit_name !== card.unit_name)) {
+      const label = document.createElement("div");
+      label.className = "word-group-label";
+      label.textContent = card.unit_name;
+      list.appendChild(label);
+    }
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "word-item";
+    item.dataset.index = String(index);
+    const num = document.createElement("span");
+    num.className = "word-index";
+    num.textContent = String(index + 1);
+    const text = document.createElement("span");
+    text.className = "word-text";
+    text.textContent = card.word;
+    const dot = document.createElement("span");
+    dot.className = "word-status-dot";
+    dot.setAttribute("aria-hidden", "true");
+    item.append(num, text, dot);
+    item.setAttribute("aria-label", `跳到第 ${index + 1} 个：${card.word}`);
+    item.addEventListener("click", () => {
+      if (state.sessionIndex === index) return;
+      state.sessionIndex = index;
+      renderCard();
+      saveLearnResume();
+    });
+    list.appendChild(item);
+  });
+  if (count) count.textContent = `${cards.length} 个`;
+}
+
+function updateWordSidebar() {
+  const aside = $("#wordSidebar");
+  if (!aside || aside.classList.contains("hidden")) return;
+  const cards = state.sessionCards || [];
+  const items = Array.from(aside.querySelectorAll(".word-item"));
+  if (items.length !== cards.length) return;
+  items.forEach((item, index) => {
+    const status = state.sessionRated[cards[index].id];
+    item.classList.toggle("active", index === state.sessionIndex);
+    item.classList.toggle("rated-know", status === "know");
+    item.classList.toggle("rated-fuzzy", status === "fuzzy");
+    item.classList.toggle("rated-unknown", status === "unknown");
+  });
+  const active = items[state.sessionIndex];
+  if (active) active.scrollIntoView({ block: "nearest" });
 }
 
 function finishSession() {
@@ -1815,6 +1922,15 @@ function updateExportContentUi() {
 }
 
 function bindEvents() {
+  $("#themeToggleBtn").addEventListener("click", () => {
+    const theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    applyTheme(theme);
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch (err) {
+      // The current theme still applies for this visit.
+    }
+  });
   window.addEventListener("beforeunload", saveLearnResume);
   window.addEventListener("pagehide", saveLearnResume);
   $$(".nav-btn").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
@@ -2011,7 +2127,28 @@ function bindEvents() {
     updateLearnModeButtons();
   });
   $("#startLearnBtn").addEventListener("click", () => startLearn(state.order));
+  $("#wordSidebarToggle").addEventListener("click", () => {
+    const aside = $("#wordSidebar");
+    const wrap = $("#learnRunning");
+    if (!aside || !wrap) return;
+    const open = !wrap.classList.contains("sidebar-open");
+    wrap.classList.toggle("sidebar-open", open);
+    aside.classList.toggle("hidden", !open);
+    $("#wordSidebarToggle").setAttribute("aria-expanded", open ? "true" : "false");
+    $("#wordSidebarToggle").classList.toggle("active", open);
+    try {
+      localStorage.setItem(WORD_SIDEBAR_KEY, open ? "open" : "closed");
+    } catch (err) {
+      // Storage unavailable, keep the in-memory state only.
+    }
+    if (open) {
+      if (!aside.querySelector(".word-item")) buildWordSidebar();
+      updateWordSidebar();
+    }
+  });
   $("#exitLearnBtn").addEventListener("click", () => {
+    $("#learnRunning").classList.remove("sidebar-open");
+    $("#wordSidebar").classList.add("hidden");
     saveSessionLog(false);
     stopSessionTimer();
     saveLearnResume();
@@ -2042,6 +2179,7 @@ function bindEvents() {
     if (e.target.closest("#typePanel, #editMeaningBtn")) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
+      e.stopPropagation();
       if (!$("#cardArea").classList.contains("revealed")) revealCard();
     }
   });
@@ -2066,20 +2204,22 @@ function bindEvents() {
     if (!$("#view-learn").classList.contains("active")) return;
     if ($("#learnRunning").classList.contains("hidden")) return;
     const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
-    if (typing && !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+    if (typing && !["ArrowUp", "ArrowDown"].includes(e.key)) return;
     if (e.code === "Space") {
       e.preventDefault();
-      revealCard();
+      if (state.learnMode !== "quiz" && !$("#cardArea").classList.contains("revealed")) {
+        revealCard();
+      }
     } else if (e.key === "1") {
       rateCurrent("know");
     } else if (e.key === "2") {
       rateCurrent("fuzzy");
     } else if (e.key === "3") {
       rateCurrent("unknown");
-    } else if (e.key === "ArrowLeft") {
+    } else if (e.key === "ArrowUp") {
       e.preventDefault();
       previousCard();
-    } else if (e.key === "ArrowRight") {
+    } else if (e.key === "ArrowDown") {
       e.preventDefault();
       skipCard();
     }
@@ -2233,6 +2373,7 @@ function bindEvents() {
 
 async function init() {
   bindEvents();
+  applyWordSidebar();
   refreshStudyLog().catch(() => {});
   try {
     await refreshBooks();
@@ -2248,4 +2389,5 @@ async function init() {
   }
 }
 
+initTheme();
 init();

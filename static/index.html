@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>亦可速记</title>
-  <link rel="icon" href="logo.svg?v=20260915-3" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260915-3">
+  <link rel="icon" href="logo.svg?v=20260915-6" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=20260920-2">
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <img class="brand-mark" src="logo.svg?v=20260915-3" alt="亦可速记 logo">
+      <img class="brand-mark" src="logo.svg?v=20260915-6" alt="亦可速记 logo">
       <div class="brand-text">
         <strong>亦可速记</strong>
         <span id="bookShortName">本地词库</span>
@@ -21,6 +21,7 @@
       <button class="nav-btn" data-view="log" type="button">学习日志</button>
       <button class="nav-btn" data-view="export" type="button">导出 PDF</button>
     </nav>
+    <button class="ghost-btn theme-btn" id="themeToggleBtn" type="button" aria-label="切换到深色模式">深色模式</button>
     <button class="primary-btn" id="importBtn" type="button">导入词书</button>
   </header>
 
@@ -91,6 +92,7 @@
     <section class="view" id="view-learn" data-view-panel="learn">
       <div id="learnSetup" class="setup-panel hidden"></div>
       <div id="learnRunning" class="learn-wrap hidden">
+        <div class="learn-main">
         <div class="learn-meta">
           <div>
             <strong id="learnUnitName">单元</strong>
@@ -100,6 +102,7 @@
             <span class="timer-label">本次学习</span>
             <strong id="learnTimer">00:00</strong>
           </div>
+          <button class="ghost-btn" id="wordSidebarToggle" type="button" aria-expanded="true" aria-controls="wordSidebar">单词列表</button>
           <button class="ghost-btn" id="exitLearnBtn" type="button">退出</button>
         </div>
         <div class="progress-track"><div class="progress-fill" id="learnProgress"></div></div>
@@ -152,13 +155,23 @@
           <button class="rating-btn unknown" data-rating="unknown" type="button">
             <span class="rating-dot"></span>不认识
           </button>
-          <button class="ghost-btn" id="prevCardBtn" type="button" disabled>上一张</button>
-          <button class="ghost-btn" id="skipCardBtn" type="button">下一张</button>
+          <button class="ghost-btn card-nav-key" id="prevCardBtn" type="button" aria-label="上一张" title="上一张" disabled>↑</button>
+          <button class="ghost-btn card-nav-key" id="skipCardBtn" type="button" aria-label="下一张" title="下一张">↓</button>
         </div>
         <div class="keyboard-hint" aria-label="键盘操作">
-          <span><kbd>1</kbd> 熟悉</span><span><kbd>2</kbd> 模糊</span><span><kbd>3</kbd> 不熟悉</span><span><kbd>←</kbd> 上一个</span><span><kbd>→</kbd> 下一个</span><span><kbd>Enter</kbd> 判断</span>
+          <span><kbd>1</kbd> 熟悉</span><span><kbd>2</kbd> 模糊</span><span><kbd>3</kbd> 不熟悉</span><span><kbd>↑</kbd> 上一个</span><span><kbd>↓</kbd> 下一个</span><span><kbd>Enter</kbd> 判断</span>
         </div>
         <div id="sessionStatus" class="session-status hidden"></div>
+
+        </div>
+
+        <aside class="word-sidebar" id="wordSidebar" aria-label="本轮单词列表">
+          <div class="word-sidebar-head">
+            <strong>单词列表</strong>
+            <span id="wordSidebarCount" class="subtle">0 个</span>
+          </div>
+          <div class="word-sidebar-list" id="wordSidebarList"></div>
+        </aside>
       </div>
 
       <div id="learnFinished" class="finish-panel hidden"></div>
@@ -408,6 +421,6 @@
 
   <div id="toastRegion" class="toast-region" aria-live="polite"></div>
 
-  <script src="app.js?v=20260915-3"></script>
+  <script src="app.js?v=20260920-2"></script>
 </body>
 </html>
