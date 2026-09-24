@@ -1,63 +1,129 @@
+<div align="center">
+
 # 亦可速记
 
-一个中英单词学习平台：用户可以导入自己的词书，按单元刷单词卡片或做三选一速记，继续上次学习进度，修正释义并记录每次认识 / 模糊 / 不认识的状态，最后导出默写 PDF。
+### 本地优先的中英单词学习台
 
-本仓库只包含平台代码，不包含任何个人词书或学习记录。第一次运行时会自动创建空数据库，用户导入自己的词书后即可开始使用。
+把词书、学习进度和复习记录留在自己的电脑上。背单词时，中央单词卡保持专注，右侧单词列表随时展开，当前单元的全貌一眼可见。
+
+<p>
+  <a href="https://github.com/chengyike20110519-create/Yike-Vocab/releases"><strong>下载一键启动包</strong></a>
+  ·
+  <a href="#界面预览">查看界面</a>
+  ·
+  <a href="#快速开始">开始使用</a>
+</p>
+
+<p>
+  <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/SQLite-local--first-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite">
+  <img src="https://img.shields.io/badge/license-MIT-2E7D32?style=flat-square" alt="MIT License">
+</p>
+
+</div>
+
+<p align="center">
+  <img src="docs/images/screenshot-sidebar.png" alt="背单词时同时查看中间单词卡和右侧单词列表" width="960">
+</p>
+
+<p align="center"><sub>侧边栏可以打开或收回；它只占用侧面空间，不会让中间单词卡消失。</sub></p>
+
+## 为什么做它
+
+很多背词工具只能让你一次看一个词，回看整单元时需要反复跳转。亦可速记把“当前要记的词”和“本单元的全貌”放在同一屏：你可以点击右侧任意单词跳转，也可以把侧边栏收回，继续专注当前卡片。
+
+## Barron 示例数据
+
+下面的界面来自一次独立生成的 Barron 展示数据：保留完整的 50 个单元和 3,482 个单词，并生成了最近 7 天的合成学习日志。它只用于让大家在 GitHub 上直接看懂应用，不代表在线用户统计，也不是仓库内置数据库。
+
+<div align="center">
+
+| 词书 | 单元 | 单词 | 学习事件 |
+| :---: | :---: | :---: | :---: |
+| **1** | **50** | **3,482** | **210** |
+
+</div>
+
+仓库只发布程序和示例界面截图，不包含作者的词书、个人学习记录或 `data/vocab.db`。截图中的学习日志是合成数据；第一次运行时会在你自己的电脑上创建空数据库，导入自己的词书即可开始。
 
 ## 界面预览
 
-| 背单词侧边栏：随时展开本单元全部单词 | 单词卡学习 |
-| --- | --- |
-| ![侧边栏](docs/images/screenshot-sidebar.png) | ![单词卡](docs/images/screenshot-learn.png) |
+### 背单词时的侧边单词列表
 
-| 词书管理 | 手机端抽屉式侧边栏 | 深色模式 |
-| --- | --- | --- |
-| ![词书管理](docs/images/screenshot-books.png) | ![手机端](docs/images/screenshot-mobile.png) | ![深色模式](docs/images/screenshot-dark.png) |
+侧边栏是可选的：点击“单词列表”即可打开，再次点击即可收回。中间的单词卡始终保留；列表会展示当前单元的全部英文单词，并按学习状态标色，点击单词即可跳转。
 
-![学习日志](docs/images/screenshot-log.png)
+<p align="center">
+  <img src="docs/images/screenshot-sidebar.png" alt="单词卡和可收回的单元单词列表" width="960">
+</p>
 
-## 功能
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>单词卡学习</strong><br>
+      <img src="docs/images/screenshot-learn.png" alt="单词卡学习界面" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <strong>词书管理</strong><br>
+      <img src="docs/images/screenshot-books.png" alt="词书管理界面" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>学习日志</strong><br>
+      <img src="docs/images/screenshot-log.png" alt="学习日志界面" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <strong>深色模式</strong><br>
+      <img src="docs/images/screenshot-dark.png" alt="深色模式界面" width="100%">
+    </td>
+  </tr>
+</table>
 
-- 导入词书：支持 PDF、Excel、CSV、TXT、JSON、DOCX，也可以直接粘贴文本
-- 大词书管理：自动识别单元，一个工作表对应一个单元，或使用“单元”列
-- 默认词书：可以把常用的词书设为默认，之后打开页面会优先进入这本词书
-- 普通速记：正序 / 乱序背诵，可上一张、下一张，并可切换普通卡片和三选一速记
-- 断点续接：自动记住每本词书的上次进度和顺序，下次可以继续速记
-- 释义修正：可在卡片和复习记录中直接修改中文释义
-- 学习记录：认识、模糊、不认识三种状态，记录每次点击时间与次数
-- 学习数据：每月日历看每天背了多少单词，学习记录列表保留每一次标记；记录同时写入浏览器本地，直接双击打开页面、关掉终端也不会丢失，启动本地服务后自动合并完整数据
-- 单词列表侧边栏：背单词时点「单词列表」随时展开或收回本单元全部单词，单词按认识程度标色、点击可跳转，单词卡保持不动；手机端为抽屉式
-- 键盘快捷键：空格翻面，1 / 2 / 3 快速标记认识 / 模糊 / 不认识
-- 分组复习：按状态或单元查看单词，可把某个分组直接拿去背，完成后也可换顺序再来一轮
-- PDF 导出：默写版每页 50 个，只给编号和英文，留空手写中文；也可导出对照版
+<p align="center">
+  <img src="docs/images/screenshot-mobile.png" alt="手机端抽屉式单词列表" width="390">
+</p>
+<p align="center"><sub>手机端会把单词列表变成抽屉，不遮挡主要学习区域。</sub></p>
 
-## 技术栈
+## 核心功能
 
-- Python 标准库 HTTP 服务
-- SQLite 本地存储
-- `openpyxl` 读取 Excel
-- `pypdf` 读取 PDF
-- `reportlab` 生成 PDF
-- 原生 HTML / CSS / JavaScript，无前端框架和构建步骤
+### 一套连续的学习流程
 
-## 本地运行
+- **导入词书**：支持 PDF、Excel、CSV、TXT、JSON、DOCX，也可以直接粘贴文本。
+- **识别单元**：每个 Excel 工作表可作为一个单元，也支持在同一张表里使用“单元”列。
+- **普通速记**：正序或乱序浏览单词卡，可上一张、下一张，也可切换三选一速记。
+- **侧边列表**：在保持中间单词卡的同时，打开或收回当前单元的完整英文单词列表；点击列表项即可跳转。
+- **断点续接**：自动记住每本词书的上次进度和顺序，下次打开可以继续。
+- **键盘操作**：空格翻面，`1` / `2` / `3` 快速标记认识、模糊、不认识。
+
+### 让复习结果可追踪
+
+- **学习状态**：记录认识、模糊、不认识三种状态，以及每次点击的时间和次数。
+- **学习日志**：按月查看每天学习量，保留每一次标记记录。
+- **分组复习**：按状态或单元筛选单词，直接开始针对性复习。
+- **释义修正**：在单词卡和复习记录中直接修正中文释义。
+- **PDF 导出**：导出默写版或中英对照版；默写版每页 50 个单词，只保留编号和英文。
+
+### 本地数据与隐私
+
+- 词库和点击记录保存在运行目录下的 `data/vocab.db`，不会被 Git 跟踪。
+- 默认词书和未完成的速记进度保存在浏览器本地存储中。
+- 删除 `data/` 即可清空本地词库和学习记录。
+- 应用默认只监听 `127.0.0.1`，没有账号系统，不建议直接暴露到公网。
+
+## 快速开始
+
+### 方式一：下载一键启动包
+
+前往 [GitHub Releases](https://github.com/chengyike20110519-create/Yike-Vocab/releases) 下载最新的 `亦可速记-一键启动包.zip`，解压后：
+
+- **macOS / Linux**：双击 `启动.command`。macOS 第一次如果提示无法打开，可右键文件并选择“打开”。
+- **Windows**：双击 `启动.bat`。
+
+启动器会自动创建独立运行环境、安装依赖、启动本地服务并打开浏览器。电脑需要预先安装 Python 3.10 或更高版本；第一次启动需要联网安装依赖。
+
+### 方式二：手动运行
 
 需要 Python 3.10 或更高版本。
-
-### GitHub Release 一键启动
-
-`亦可速记-一键启动包.zip` 和 GitHub Release 提供的是这个平台的本地部署包，不是在线网站：词书和学习记录会保存在用户自己的电脑上，GitHub 不会接触这些数据。
-
-下载并解压一键启动包后：
-
-- macOS / Linux：双击 `启动.command`。macOS 第一次如果提示无法打开，可右键文件并选择“打开”。
-- Windows：双击 `启动.bat`。
-
-启动器会自动创建独立运行环境、安装依赖、启动本地前后端服务，并打开浏览器。这个项目的前端页面和后端接口由同一个本地服务提供，所以用户只需要点击一次，不需要分别启动前端和后端。关闭启动器窗口即可停止服务。
-
-电脑需要预先安装 Python 3.10 或更高版本。第一次启动需要联网安装依赖，之后启动不需要重复安装。
-
-### 手动运行
 
 ```bash
 git clone https://github.com/chengyike20110519-create/Yike-Vocab.git
@@ -75,20 +141,20 @@ Windows 激活虚拟环境：
 python app.py
 ```
 
-启动后会自动打开 `http://127.0.0.1:8000`。如果常用端口已被占用，程序会自动选择系统分配的空闲本地端口。
+启动后会自动打开本地页面。如果常用端口已被占用，程序会自动选择系统分配的空闲本地端口。
 
 ## 导入格式
 
 Excel 推荐列名：
 
-- 单元：`单元` / `Unit`
-- 单词：`单词` / `word`
-- 音标：`音标` / `phonetic`
-- 词性：`词性` / `pos`
-- 中文释义：`中文释义` / `释义`
-- 英文释义（可选）：`英文释义` / `meaning_en`
-
-工作簿可以每个工作表对应一个单元，也可以在同一个工作表里放一列单元号。
+| 内容 | 支持的列名 |
+| --- | --- |
+| 单元 | `单元` / `Unit` |
+| 单词 | `单词` / `word` |
+| 音标 | `音标` / `phonetic` |
+| 词性 | `词性` / `pos` |
+| 中文释义 | `中文释义` / `释义` |
+| 英文释义（可选） | `英文释义` / `meaning_en` |
 
 粘贴文本支持类似格式：
 
@@ -100,37 +166,29 @@ come up with 提出；想出
 
 PDF 导入会识别常见的 Barron / Direct Hits 词书排版。扫描版且没有文字层的 PDF 无法解析，请先另存为文字版或转成 Excel / CSV。
 
-## 数据存储
-
-词库和点击记录保存在运行目录下的 `data/vocab.db`，不会被 Git 跟踪。仓库中不提供预置个人词书；删除 `data/` 即可清空本地数据。
-
-默认词书和未完成的速记进度保存在浏览器本地存储中。清理浏览器数据或更换浏览器后，这些偏好和未完成进度需要重新设置；已经写入 `data/vocab.db` 的学习记录不受影响。
-
-当平台通过支持会话隔离的服务公开运行时，浏览器会使用独立会话数据库保存每位用户的数据。应用没有账号系统，不建议把它直接暴露到公网来存放敏感内容。
-
 ## 项目结构
 
 ```text
 .
-├── app.py              # 本地服务与 API
-├── importer.py         # 词书解析与导入
-├── export_pdf.py       # PDF 导出
-├── 启动.command         # macOS / Linux 一键启动
-├── 启动.bat             # Windows 一键启动
-├── 亦可速记-一键启动包.zip # 可直接分发的本地启动包
+├── app.py                  # 本地服务与 API
+├── importer.py             # 词书解析与导入
+├── export_pdf.py           # PDF 导出
+├── 启动.command             # macOS / Linux 一键启动
+├── 启动.bat                 # Windows 一键启动
+├── 亦可速记-一键启动包.zip    # 可直接分发的本地启动包
 ├── static/
 │   ├── index.html
 │   ├── styles.css
 │   └── app.js
-├── docs/images/        # 界面截图
+├── docs/images/            # 界面截图
 ├── requirements.txt
 ├── LICENSE
 └── README.md
 ```
 
-## 安全说明
+## 技术栈
 
-应用只适合作为本地或个人服务器工具，默认监听 `127.0.0.1`。它没有账号系统，不建议直接暴露到公网。
+Python 标准库 HTTP 服务、SQLite、`openpyxl`、`pypdf`、`reportlab`，以及原生 HTML / CSS / JavaScript；没有前端框架，也不需要构建步骤。
 
 ## 许可证
 
