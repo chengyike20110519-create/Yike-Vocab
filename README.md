@@ -123,7 +123,9 @@
 
 ### 方式二：手动运行
 
-需要 Python 3.10 或更高版本。
+需要 Python 3.10 或更高版本。以下命令均在终端中运行。
+
+**macOS / Linux：**
 
 ```bash
 git clone https://github.com/chengyike20110519-create/Yike-Vocab.git
@@ -134,12 +136,17 @@ python3 -m pip install -r requirements.txt
 python3 app.py
 ```
 
-Windows 激活虚拟环境：
+**Windows（PowerShell）：**
 
 ```powershell
-.venv\Scripts\activate
-python app.py
+git clone https://github.com/chengyike20110519-create/Yike-Vocab.git
+cd Yike-Vocab
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe app.py
 ```
+
+如果电脑没有 `py` 命令，请把创建虚拟环境那一行的 `py -3` 换成 `python`。直接调用虚拟环境中的 Python，无需激活脚本。
 
 启动后会自动打开本地页面。如果常用端口已被占用，程序会自动选择系统分配的空闲本地端口。
 
